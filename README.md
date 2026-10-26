@@ -2,6 +2,8 @@
 
 Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and four required convention skills. Executable commands are not implemented or published yet.
 
+See [the project roadmap](ROADMAP.md) for the agreed scope, implementation milestones, and open decisions.
+
 ## Planned commands
 
 | Command | Purpose |
