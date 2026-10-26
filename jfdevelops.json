@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "name": "jf-naming-conventions",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.1.0",
+        "path": "./skills/jf-naming-conventions"
+      },
+      "sha256": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9"
+    },
+    {
+      "name": "jf-coding-conventions",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.1.0",
+        "path": "./skills/jf-coding-conventions"
+      },
+      "sha256": "26a9c9a5cadf7411854b77fbfe6c5e4b0395aa7954c6d4c7523aeb63726fdec9"
+    },
+    {
+      "name": "jf-commit-conventions",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.1.0",
+        "path": "./skills/jf-commit-conventions"
+      },
+      "sha256": "54522202929d30c76c302a86060a5c69e357d8fcbe40eb24c225044c901f5dd9"
+    }
+  ]
+}
