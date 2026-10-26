@@ -19,7 +19,9 @@ After the initialization commit, move to a descriptive topic branch before begin
 
 Use one branch per coherent workstream, not one branch per file or commit. Reuse the current branch while working on the same idea. Start a separate branch when the work moves to an independent idea; if it depends on unfinished work, make that dependency explicit instead of mixing unrelated changes.
 
-Follow the target repository's branch prefix policy. If it specifies none, use `codex/<short-kebab-case-topic>`, such as `codex/skill-discovery` or `codex/cli-foundation`. Branch names should describe the work, not the agent or session identifier.
+Every topic branch must use exactly one change-type prefix followed by `/` and a short kebab-case topic: `feat/`, `fix/`, `refactor/`, `docs/`, `style/`, `test/`, `chore/`, `ci/`, or `perf/`. Choose the type that describes the branch's primary purpose, such as `feat/skill-discovery`, `docs/project-roadmap`, or `chore/cli-foundation`. Use another prefix only when the user explicitly specifies it; a tool or agent default is not an exception. Keep `main` as the unprefixed initialization and integration branch.
+
+Before creating or switching to a topic branch, verify its name satisfies this rule. When the user asks to correct an existing branch name, rename it without rewriting commits; remote branch creation or deletion remains a separate operation.
 
 Create or switch branches within the user's authorized workflow. A standing instruction to branch when beginning a section authorizes that transition for the current task; the skill alone does not grant permission. If switching would disturb unrelated uncommitted work, preserve it and resolve the workspace choice before switching. Do not automatically stash, discard, or move someone else's changes.
 

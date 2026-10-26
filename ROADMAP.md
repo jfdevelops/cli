@@ -100,7 +100,7 @@ The import rule requires separation after the final import. Consecutive imports 
 
 For newly initialized projects, `main` contains one foundation commit: `chore(init): initialize project`. Start a descriptive topic branch when work moves into a distinct section or idea. Reuse that branch for the same workstream rather than making one branch per file or commit.
 
-Keep each commit cohesive, including its directly related tests and documentation. Use `type(scope): summary`, with lowercase outcome-focused subjects and no attribution/session trailers. Follow the target's branch-prefix policy; the current shared fallback is `codex/<topic>`.
+Keep each commit cohesive, including its directly related tests and documentation. Use `type(scope): summary`, with lowercase outcome-focused subjects and no attribution/session trailers. Every topic branch must use exactly one change-type prefix: `feat/`, `fix/`, `refactor/`, `docs/`, `style/`, `test/`, `chore/`, `ci/`, or `perf/`, followed by a short kebab-case topic. Other prefixes require explicit user instruction; tool and agent defaults do not override this rule. Keep `main` as the unprefixed initialization and integration branch.
 
 The workflow is encoded in `jf-git-workflow`, separate from commit-message conventions. Preserve dirty worktrees and existing history. Branch organization does not itself authorize pushes, merges, publishing, or history rewrites.
 
