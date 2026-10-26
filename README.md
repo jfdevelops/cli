@@ -18,6 +18,8 @@ Interactive project setup and skill discovery for new and existing projects. Thi
 
 The intended invocation is `npx @jfdevelops/cli <command>`. Portless, Convex, TanStack libraries, and jfdevelops libraries are opt-in. Addon skills are installed only when the addon is selected. Projects may contain both app and library targets.
 
+The CLI uses Commander for command parsing, subcommands, flags, and help, and Clack for interactive prompts and progress output. Both are installed as runtime dependencies. Command handlers and interactive flows will be implemented next, with project operations kept separate from terminal input/output. Development requires Node.js 22.12.0 or newer and pnpm 10.28.1.
+
 ## Required project skills
 
 Naming, coding, commit, and Git workflow conventions are copied from `@jfdevelops/skills` version `0.1.0`, with source paths and SHA-256 digests recorded in `jfdevelops.json`. New projects begin with an initialization commit on main, then use topic branches for distinct sections or ideas. AGENTS.md requires loading the applicable instructions; native discovery copies are supplied for agents with differing directory conventions. Compatibility requires the agent to support file access and read the supplied instructions.
