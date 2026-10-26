@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const config = JSON.parse(await readFile(resolve(root, 'jfdevelops.json'), 'utf8'));
-const required = ['jf-naming-conventions', 'jf-coding-conventions', 'jf-commit-conventions'];
+const required = ['jf-naming-conventions', 'jf-coding-conventions', 'jf-commit-conventions', 'jf-git-workflow'];
 
 assert.equal(config.schemaVersion, 1);
 assert.deepEqual(config.skills.map((skill) => skill.name).sort(), [...required].sort());
@@ -33,4 +33,4 @@ for (const path of ['CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md',
   assert((await readFile(resolve(root, path), 'utf8')).includes('AGENTS.md'));
 }
 
-console.log('Verified all three required conventions, provenance, and agent discovery copies.');
+console.log('Verified all required conventions, provenance, and agent discovery copies.');

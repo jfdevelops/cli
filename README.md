@@ -1,6 +1,6 @@
 # @jfdevelops/cli
 
-Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and the three required convention skills. Executable commands are not implemented or published yet.
+Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and four required convention skills. Executable commands are not implemented or published yet.
 
 ## Planned commands
 
@@ -20,7 +20,7 @@ The intended invocation is `npx @jfdevelops/cli <command>`. Portless, Convex, Ta
 
 ## Required project skills
 
-Naming, coding, and commit conventions are copied from `@jfdevelops/skills` version `0.1.0`, with source paths and SHA-256 digests recorded in `jfdevelops.json`. AGENTS.md requires loading the applicable instructions; native discovery copies are supplied for agents with differing directory conventions. Compatibility requires the agent to support file access and read the supplied instructions.
+Naming, coding, commit, and Git workflow conventions are copied from `@jfdevelops/skills` version `0.1.0`, with source paths and SHA-256 digests recorded in `jfdevelops.json`. New projects begin with an initialization commit on main, then use topic branches for distinct sections or ideas. AGENTS.md requires loading the applicable instructions; native discovery copies are supplied for agents with differing directory conventions. Compatibility requires the agent to support file access and read the supplied instructions.
 
 Until the skills package is published, these are checked-in snapshots generated from the sibling `skills` repository. There is no unresolved registry dependency or external path dependency required to run checks. After the first skills release, the CLI should pin that published package as a dev dependency and use the installed package as the synchronization source.
 
