@@ -81,14 +81,13 @@ Portless-backed development and preview commands are generated when Portless is 
 
 ## Shared conventions and formatting
 
-The four currently packaged shared skills are:
+The three currently packaged shared skills are:
 
 - `jf-naming-conventions`.
 - `jf-coding-conventions`.
-- `jf-commit-conventions`.
-- `jf-git-workflow`.
+- `jf-git`, containing the master Git skill and branch, commit, and PR references in one folder.
 
-All four are required in this CLI repository. The shared coding style follows the Code styling section of `jfdevelops/glammed-by-arielie/AGENTS.md`: declared top-level functions, arrow callbacks except React component callbacks, grouped declarations, braces for control flow, blank lines before returns and around functions/code blocks, and `cn` for conditional classes. App-specific rules apply only to compatible targets; app direct-import conventions do not prohibit deliberate library entry points.
+All three are required in this CLI repository. The shared coding style follows the Code styling section of `jfdevelops/glammed-by-arielie/AGENTS.md`: declared top-level functions, arrow callbacks except React component callbacks, grouped declarations, braces for control flow, blank lines before returns and around functions/code blocks, and `cn` for conditional classes. App-specific rules apply only to compatible targets; app direct-import conventions do not prohibit deliberate library entry points.
 
 Formatting needs both agent guidance and executable enforcement. Plan a `jf-formatting-conventions` skill in the shared package, moving spacing guidance into one authoritative place rather than duplicating it across skills. This skill has been discussed but is not created yet.
 
@@ -102,7 +101,7 @@ For newly initialized projects, `main` contains one foundation commit: `chore(in
 
 Keep each commit cohesive, including its directly related tests and documentation. Use `type(scope): summary`, with lowercase outcome-focused subjects and no attribution/session trailers. Every topic branch must use exactly one change-type prefix: `feat/`, `fix/`, `refactor/`, `docs/`, `style/`, `test/`, `chore/`, `ci/`, or `perf/`, followed by a short kebab-case topic. Other prefixes require explicit user instruction; tool and agent defaults do not override this rule. Keep `main` as the unprefixed initialization and integration branch.
 
-The workflow is encoded in `jf-git-workflow`, separate from commit-message conventions. Preserve dirty worktrees and existing history. Branch organization does not itself authorize pushes, merges, publishing, or history rewrites.
+All Git guidance is grouped in `jf-git/`. Its master skill requires inspecting the current repository's branch, commit, and PR conventions before making decisions; task-specific references supply shared defaults only where those conventions are silent. Current explicit user instructions take precedence. Preserve dirty worktrees and existing history. Branch organization does not itself authorize pushes, merges, publishing, or history rewrites.
 
 ## Package-owned skill discovery
 
@@ -174,7 +173,7 @@ Validate content parity and test actual discovery in the supported agent version
 
 - [x] Initialize both repositories with a foundation commit on `main`.
 - [x] Prepare the independently versioned shared skills package and discovery metadata schema.
-- [x] Add naming, coding, commit, and Git workflow skills.
+- [x] Add naming, coding, and unified Git skills.
 - [x] Install required skill copies, agent instructions, and provenance in the CLI.
 - [x] Add metadata/path validation, skill tests, package-content checks, and CI configuration.
 - [x] Install Commander and Clack and verify dependency imports/parsing.

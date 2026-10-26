@@ -9,7 +9,10 @@
         "version": "0.1.0",
         "path": "./skills/jf-naming-conventions"
       },
-      "sha256": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9"
+      "sha256": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9",
+      "files": {
+        "SKILL.md": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9"
+      }
     },
     {
       "name": "jf-coding-conventions",
@@ -19,27 +22,26 @@
         "version": "0.1.0",
         "path": "./skills/jf-coding-conventions"
       },
-      "sha256": "26a9c9a5cadf7411854b77fbfe6c5e4b0395aa7954c6d4c7523aeb63726fdec9"
+      "sha256": "26a9c9a5cadf7411854b77fbfe6c5e4b0395aa7954c6d4c7523aeb63726fdec9",
+      "files": {
+        "SKILL.md": "26a9c9a5cadf7411854b77fbfe6c5e4b0395aa7954c6d4c7523aeb63726fdec9"
+      }
     },
     {
-      "name": "jf-commit-conventions",
+      "name": "jf-git",
       "required": true,
       "source": {
         "package": "@jfdevelops/skills",
         "version": "0.1.0",
-        "path": "./skills/jf-commit-conventions"
+        "path": "./skills/jf-git"
       },
-      "sha256": "54522202929d30c76c302a86060a5c69e357d8fcbe40eb24c225044c901f5dd9"
-    },
-    {
-      "name": "jf-git-workflow",
-      "required": true,
-      "source": {
-        "package": "@jfdevelops/skills",
-        "version": "0.1.0",
-        "path": "./skills/jf-git-workflow"
-      },
-      "sha256": "ef39fb5ecf4732c5fdfc0d6d52ea20c34f99212cfab57ab28cb3acb4e66b190c"
+      "sha256": "6821cf9a9b7f657d3655a12618a9858fdbb14b24db03e8d65f52f8290b5ed21d",
+      "files": {
+        "references/branches.md": "78628604155f3f21591af3282994ac09002607fc10eba15d04a52eef956e4d45",
+        "references/commits.md": "469359cb0aea1cb210d46297cdf46f56df18140d68177cd75734cd306df263a0",
+        "references/pull-requests.md": "680d61f55251d79d4d1dbd2bbae3a5f1711c2fcb1007f7d2dcea4899a27fb70e",
+        "SKILL.md": "6821cf9a9b7f657d3655a12618a9858fdbb14b24db03e8d65f52f8290b5ed21d"
+      }
     }
   ]
 }
