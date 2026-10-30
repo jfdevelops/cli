@@ -6,7 +6,7 @@ const packageNameSchema = z.string().regex(/^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][
 const optionsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]));
 
 // Project-relative POSIX path without drive letters, backslashes, or empty, `.`, or `..` segments.
-const projectPathSchema = z
+export const projectPathSchema = z
   .string()
   .regex(/^(?!\/)(?!.*[\\:])(?!.*(?:^|\/)\.{0,2}(?:\/|$)).+$/, 'Expected a project-relative POSIX path');
 
@@ -115,3 +115,4 @@ export const projectConfigSchema = z
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;
 export type ManagedFile = ProjectConfig['managedFiles'][number];
+export type ManagedFileOwner = ManagedFile['owner'];

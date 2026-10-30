@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { agentSkillDirectories } from '../skills/agent-directories.js';
 
 // Instruction files and skill directories that adoption must preserve.
 const agentFilePaths = [
@@ -10,10 +11,7 @@ const agentFilePaths = [
   '.cursor/rules',
   '.cursorrules',
   '.windsurfrules',
-  '.agents/skills',
-  '.claude/skills',
-  '.cursor/skills',
-  '.github/skills',
+  ...agentSkillDirectories,
 ];
 
 export function detectAgentFiles(projectRoot: string) {

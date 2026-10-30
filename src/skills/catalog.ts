@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { compareStrings } from '../compare.js';
 import { readPackageManifest } from '../detect/manifest.js';
 import { discoverPackageSkills, type DiscoveredSkill } from './discover.js';
 import { findInstalledPackage } from './installed.js';
@@ -85,7 +86,7 @@ export async function buildSkillCatalog(projectRoot: string, scopes: string[]) {
   }
 
   const skills = [...skillsByKey.values()].sort(
-    (left, right) => left.name.localeCompare(right.name) || left.source.package.localeCompare(right.source.package),
+    (left, right) => compareStrings(left.name, right.name) || compareStrings(left.source.package, right.source.package),
   );
 
   return { skills, conflicts: findConflicts(skills), problems, missingDependencies };
