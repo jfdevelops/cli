@@ -169,7 +169,7 @@ Validate content parity and test actual discovery in the supported agent version
 
 ## Delivery milestones
 
-### 0. Repository foundations — complete locally
+### 0. Repository foundations — complete
 
 - [x] Initialize both repositories with a foundation commit on `main`.
 - [x] Prepare the independently versioned shared skills package and discovery metadata schema.
@@ -180,17 +180,17 @@ Validate content parity and test actual discovery in the supported agent version
 
 Both packages are unpublished. The CLI is private and has no command executable yet. The CLI currently consumes checked-in snapshots from the local skills repository; after the first shared-skills release, pin that package as a development dependency and synchronize from the installed version. Configured CI still needs a remote run after authorized pushes.
 
-### 1. Shared engine — next
+### 1. Shared engine — complete
 
 - [x] Define the target-aware project configuration schema and validation.
 - [x] Detect project/package-manager/workspace state.
 - [x] Discover package-owned skills and construct the compatible catalog.
 - [x] Build reviewable change plans with managed-file ownership and conflicts.
-- [ ] Apply selected changes with accurate success/failure tracking.
+- [x] Apply selected changes with accurate success/failure tracking.
 
 Completion: representative new and existing project fixtures produce correct discovery and change plans, preserve unrelated content, and support repeat runs without duplicate changes.
 
-### 2. Existing-project `init`
+### 2. Existing-project `init` — next
 
 - [ ] Add the command entry point, Commander routing/help, and Clack prompt boundary.
 - [ ] Confirm detected targets/integrations and select skills.
