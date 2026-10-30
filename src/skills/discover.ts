@@ -1,22 +1,16 @@
 import { readFile, realpath } from 'node:fs/promises';
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { z } from 'zod';
 import { readPackageManifest } from '../detect/manifest.js';
+import { isInsideDirectory } from '../files/containment.js';
 import { parseSkillFrontmatter } from './frontmatter.js';
 import { packageSkillsSchema, type PackageSkillEntry } from './metadata.js';
-
-function isInside(root: string, path: string) {
-  const local = relative(root, path);
-
-  // relative() returns an absolute path when the target is on another Windows drive.
-  return local !== '..' && !local.startsWith(`..${sep}`) && !isAbsolute(local);
-}
 
 async function readSkill(packageRoot: string, entry: PackageSkillEntry) {
   const directory = await realpath(resolve(packageRoot, entry.path));
   const file = await realpath(join(directory, 'SKILL.md'));
 
-  if (!isInside(packageRoot, directory) || !isInside(packageRoot, file)) {
+  if (!isInsideDirectory(packageRoot, directory) || !isInsideDirectory(packageRoot, file)) {
     throw new Error('path resolves outside the package');
   }
 
