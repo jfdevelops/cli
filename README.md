@@ -39,4 +39,4 @@ pnpm skills:sync
 
 Build the shared catalog, project configuration schema, and change-planning/installation engine. Implement `init` on top of it, then reuse that engine for `create` and `add`. Existing user files must be preserved; locally modified managed files need a reviewable conflict. The bootstrap sync script is development tooling for these two new repositories, not that installer.
 
-Current `jfdevelops.json` records only the convention skills consumed by this repository. Target detection, addon state, package scaffolding, and migration of config schema versions will be added with their respective features.
+The schema version 1 project configuration is defined and validated in `src/config/schema.ts`: generator, project, targets, addons, formatter, skill provenance, and per-file managed-file hashes. This repository's own `jfdevelops.json` still uses the skills-only bootstrap shape written by the sibling sync script until that script emits the new structure. Target detection, addon state, and package scaffolding will populate the configuration with their respective features.
