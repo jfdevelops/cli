@@ -184,7 +184,7 @@ Both packages are unpublished. The CLI is private and has no command executable 
 
 - [x] Define the target-aware project configuration schema and validation.
 - [x] Detect project/package-manager/workspace state.
-- [ ] Discover package-owned skills and construct the compatible catalog.
+- [x] Discover package-owned skills and construct the compatible catalog.
 - [ ] Build reviewable change plans with managed-file ownership and conflicts.
 - [ ] Apply selected changes with accurate success/failure tracking.
 
