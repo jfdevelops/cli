@@ -27,6 +27,22 @@ async function collectPaths(directory, prefix = '') {
   return paths.sort();
 }
 
+function sha256(content) {
+
+  return createHash('sha256').update(content).digest('hex');
+}
+
+// Matches @jfdevelops/skills: the skill digest hashes `<file hash>  <path>` lines
+// for every resource, sorted by path code units.
+function skillDigest(files) {
+  const manifest = Object.keys(files)
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+    .map((path) => `${files[path]}  ${path}\n`)
+    .join('');
+
+  return sha256(manifest);
+}
+
 assert.equal(config.schemaVersion, 1);
 assert.deepEqual(config.skills.map((skill) => skill.name).sort(), [...required].sort());
 
@@ -35,16 +51,14 @@ for (const skill of config.skills) {
   assert.equal(skill.source.package, '@jfdevelops/skills');
   assert.equal(skill.source.version, '0.1.0');
   assert.equal(skill.source.path, `./skills/${skill.name}`);
-  assert.equal(skill.sha256, skill.files['SKILL.md']);
+  assert.equal(skill.sha256, skillDigest(skill.files), `Skill digest differs: ${skill.name}`);
 
   for (const directory of ['.agents/skills', '.claude/skills', '.cursor/skills', '.github/skills']) {
     assert.deepEqual(await collectPaths(resolve(root, directory, skill.name)), Object.keys(skill.files).sort());
 
     for (const [path, expected] of Object.entries(skill.files)) {
       const content = await readFile(resolve(root, directory, skill.name, path));
-      const digest = createHash('sha256').update(content).digest('hex');
-
-      assert.equal(digest, expected, `Skill content differs: ${directory}/${skill.name}/${path}`);
+      assert.equal(sha256(content), expected, `Skill content differs: ${directory}/${skill.name}/${path}`);
     }
   }
 
