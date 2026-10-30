@@ -6,11 +6,14 @@ const dependencyMapSchema = z.record(z.string(), z.string());
 
 const packageManifestSchema = z.looseObject({
   name: z.string().optional(),
+  version: z.string().optional(),
   private: z.boolean().optional(),
   packageManager: z.string().optional(),
   workspaces: z.union([z.array(z.string()), z.looseObject({ packages: z.array(z.string()).optional() })]).optional(),
   dependencies: dependencyMapSchema.optional(),
   devDependencies: dependencyMapSchema.optional(),
+  optionalDependencies: dependencyMapSchema.optional(),
+  jfdevelops: z.unknown().optional(),
   main: z.string().optional(),
   module: z.string().optional(),
   types: z.string().optional(),
