@@ -1,7 +1,6 @@
 {
   "name": "@jfdevelops/cli",
   "version": "0.0.0",
-  "private": true,
   "description": "Project scaffolding and package-owned skill discovery for jfdevelops",
   "type": "module",
   "license": "MIT",
@@ -9,18 +8,28 @@
     "type": "git",
     "url": "git+https://github.com/jfdevelops/cli.git"
   },
+  "bin": {
+    "jfdevelops": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "check": "pnpm typecheck && pnpm test && pnpm check:skills",
+    "check": "pnpm typecheck && pnpm test && pnpm check:skills && pnpm check:package",
     "check:skills": "node scripts/check-skills.mjs",
     "typecheck": "tsc",
     "test": "vitest run",
     "skills:sync": "node ../skills/scripts/sync-agent-skills.mjs .",
     "changeset": "changeset",
-    "version-packages": "changeset version"
+    "version-packages": "changeset version",
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
+    "release": "pnpm build && changeset publish",
+    "check:package": "node scripts/check-package.mjs"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
@@ -32,5 +41,9 @@
     "@types/node": "^22.20.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
