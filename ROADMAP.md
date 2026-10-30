@@ -192,10 +192,10 @@ Completion: representative new and existing project fixtures produce correct dis
 
 ### 2. Existing-project `init` — next
 
-- [ ] Add the command entry point, Commander routing/help, and Clack prompt boundary.
+- [x] Add the command entry point, Commander routing/help, and Clack prompt boundary.
 - [ ] Confirm detected targets/integrations and select skills.
 - [ ] Preview and apply setup, instruction pointers, CLI dependency, and configuration.
-- [ ] Cover cancellation, conflicts, partial failures, and unchanged repeat runs.
+- [x] Cover cancellation, conflicts, partial failures, and unchanged repeat runs.
 
 Completion: initialize an existing project, select skills, review the changes, and install them without disturbing its files or Git history. This is the first usable product milestone.
 

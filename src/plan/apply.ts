@@ -9,7 +9,7 @@ import { hashContent, type FileContent } from './hash.js';
 
 export type ConflictResolution = 'keep' | 'overwrite';
 
-export type AppliedAction = 'create' | 'update' | 'delete' | 'adopt' | 'forget' | 'overwrite';
+export type AppliedAction = 'create' | 'update' | 'edit' | 'delete' | 'adopt' | 'forget' | 'overwrite';
 
 export type ApplyChangePlanOptions = {
   projectRoot: string;
@@ -19,7 +19,7 @@ export type ApplyChangePlanOptions = {
 };
 
 type Operation =
-  | { kind: 'write'; content: FileContent; action: AppliedAction }
+  | { kind: 'write'; content: FileContent; action: AppliedAction; isManaged: boolean }
   | { kind: 'remove'; action: AppliedAction }
   | { kind: 'record'; sha256: string; action: AppliedAction }
   | { kind: 'drop'; action: AppliedAction }
@@ -27,6 +27,11 @@ type Operation =
   | { kind: 'none' };
 
 const overwritableReasons = new Set<ConflictReason>(['locally-edited', 'unmanaged', 'edited-before-removal']);
+
+export function canOverwrite(reason: ConflictReason) {
+
+  return overwritableReasons.has(reason);
+}
 
 export class ApplyError extends Error {
   override name = 'ApplyError';
@@ -59,7 +64,10 @@ function getOperation(change: PlannedChange, resolution: ConflictResolution | un
     case 'create':
     case 'update':
 
-      return { kind: 'write', content: change.content, action: change.action };
+      return { kind: 'write', content: change.content, action: change.action, isManaged: true };
+    case 'edit':
+
+      return { kind: 'write', content: change.content, action: 'edit', isManaged: false };
     case 'delete':
 
       return { kind: 'remove', action: 'delete' };
@@ -78,7 +86,7 @@ function getOperation(change: PlannedChange, resolution: ConflictResolution | un
         return { kind: 'keep', reason: change.reason };
       }
 
-      return change.desired === undefined ? { kind: 'remove', action: 'delete' } : { kind: 'write', content: change.desired, action: 'overwrite' };
+      return change.desired === undefined ? { kind: 'remove', action: 'delete' } : { kind: 'write', content: change.desired, action: 'overwrite', isManaged: true };
   }
 }
 
@@ -159,7 +167,7 @@ export async function applyChangePlan({ projectRoot, plan, resolutions = {} }: A
 
       if (operation.kind === 'remove' || operation.kind === 'drop') {
         records.delete(change.path);
-      } else {
+      } else if (operation.kind === 'record' || operation.isManaged) {
         const sha256 = operation.kind === 'write' ? hashContent(operation.content) : operation.sha256;
 
         records.set(change.path, { path: change.path, owner: change.owner, sha256 } satisfies ManagedFile);

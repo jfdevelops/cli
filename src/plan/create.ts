@@ -6,6 +6,9 @@ import { hashContent, type FileContent } from './hash.js';
 
 export type DesiredFile = { path: string; owner: ManagedFileOwner; content: FileContent };
 
+// A targeted change to a project-owned text file, such as a marked section; the file stays unmanaged.
+export type FileEdit = { path: string; transform: (current: string | undefined) => string };
+
 export type ConflictReason = 'locally-edited' | 'unmanaged' | 'owned-elsewhere' | 'edited-before-removal' | 'not-a-file';
 
 // currentSha256 is the file's hash when planned, so applying can detect later edits; undefined when missing or not a file.
@@ -13,6 +16,7 @@ type ChangeTarget = { path: string; owner: ManagedFileOwner; currentSha256: stri
 
 export type PlannedChange =
   | (ChangeTarget & { action: 'create' | 'update'; content: FileContent; sha256: string })
+  | (ChangeTarget & { action: 'edit'; content: string })
   | (ChangeTarget & { action: 'adopt' | 'unchanged'; sha256: string })
   | (ChangeTarget & { action: 'delete' | 'forget' })
   | (ChangeTarget & { action: 'conflict'; reason: ConflictReason; current: Buffer | undefined; desired: FileContent | undefined });
@@ -23,6 +27,7 @@ export type ChangePlanOptions = {
   projectRoot: string;
   managedFiles?: ManagedFile[];
   files: DesiredFile[];
+  edits?: FileEdit[];
   // Owners whose complete file set is given; only their missing managed files are removed.
   owners: ManagedFileOwner[];
 };
@@ -125,7 +130,21 @@ function planRemoval(record: ManagedFile, current: CurrentFile): PlannedChange {
   return { ...target, action: 'conflict', reason, current: current.kind === 'file' ? current.content : undefined, desired: undefined };
 }
 
-function validateFiles(files: DesiredFile[], ownerKeys: Set<string>) {
+function planEdit(edit: FileEdit, current: CurrentFile): PlannedChange | undefined {
+  const target = { path: edit.path, owner: { type: 'project' as const }, currentSha256: getCurrentSha256(current) };
+
+  if (current.kind === 'other') {
+
+    return { ...target, action: 'conflict', reason: 'not-a-file', current: undefined, desired: undefined };
+  }
+
+  const currentText = current.kind === 'file' ? current.content.toString('utf8') : undefined;
+  const content = edit.transform(currentText);
+
+  return content === currentText ? undefined : { ...target, action: 'edit', content };
+}
+
+function validateFiles(files: Array<DesiredFile | FileEdit>, ownerKeys: Set<string>, records: Map<string, ManagedFile>) {
   const paths = new Set<string>();
 
   for (const file of files) {
@@ -137,8 +156,12 @@ function validateFiles(files: DesiredFile[], ownerKeys: Set<string>) {
       throw new ChangePlanError(`More than one planned file uses ${file.path}`);
     }
 
-    if (!ownerKeys.has(getOwnerKey(file.owner))) {
+    if ('owner' in file && !ownerKeys.has(getOwnerKey(file.owner))) {
       throw new ChangePlanError(`${file.path} belongs to ${getOwnerKey(file.owner)}, which is not being planned`);
+    }
+
+    if ('transform' in file && records.has(file.path)) {
+      throw new ChangePlanError(`${file.path} is managed and cannot receive a targeted edit`);
     }
 
     paths.add(file.path);
@@ -164,11 +187,11 @@ function computeManagedFiles(managedFiles: ManagedFile[], changes: PlannedChange
  * Compares the files the CLI wants to own with the project on disk and the recorded managed files.
  * Reads only; nothing is written until a plan is applied.
  */
-export async function createChangePlan({ projectRoot, managedFiles = [], files, owners }: ChangePlanOptions) {
+export async function createChangePlan({ projectRoot, managedFiles = [], files, edits = [], owners }: ChangePlanOptions) {
   const ownerKeys = new Set(owners.map((owner) => getOwnerKey(owner)));
   const records = new Map(managedFiles.map((file) => [file.path, file]));
 
-  validateFiles(files, ownerKeys);
+  validateFiles([...files, ...edits], ownerKeys, records);
 
   const desiredPaths = new Set(files.map((file) => file.path));
   const removals = managedFiles.filter((record) => ownerKeys.has(getOwnerKey(record.owner)) && !desiredPaths.has(record.path));
@@ -176,7 +199,10 @@ export async function createChangePlan({ projectRoot, managedFiles = [], files, 
     planDesiredFile(file, records.get(file.path), await readCurrentFile(join(projectRoot, file.path)), ownerKeys),
   );
   const removalChanges = removals.map(async (record) => planRemoval(record, await readCurrentFile(join(projectRoot, record.path))));
-  const changes = (await Promise.all([...desiredChanges, ...removalChanges])).sort((left, right) => compareStrings(left.path, right.path));
+  const editChanges = edits.map(async (edit) => planEdit(edit, await readCurrentFile(join(projectRoot, edit.path))));
+  const changes = (await Promise.all([...desiredChanges, ...removalChanges, ...editChanges]))
+    .filter((change) => change !== undefined)
+    .sort((left, right) => compareStrings(left.path, right.path));
 
   return {
     changes,

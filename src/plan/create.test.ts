@@ -162,6 +162,35 @@ describe('createChangePlan', () => {
     await expect(createChangePlan({ projectRoot, owners: [skill], files })).rejects.toThrow(message);
   });
 
+  it('plans targeted edits to project-owned files without recording them', async () => {
+    const projectRoot = await createProject({ 'AGENTS.md': '# Mine\n', 'same.md': 'same' });
+    const plan = await createChangePlan({
+      projectRoot,
+      owners: [skill],
+      files: [],
+      edits: [
+        { path: 'AGENTS.md', transform: (current) => `${current}appended\n` },
+        { path: 'CLAUDE.md', transform: (current) => current ?? 'created\n' },
+        { path: 'same.md', transform: (current) => current ?? '' },
+      ],
+    });
+
+    expect(plan.changes).toMatchObject([
+      { path: 'AGENTS.md', action: 'edit', owner: { type: 'project' }, content: '# Mine\nappended\n' },
+      { path: 'CLAUDE.md', action: 'edit', currentSha256: undefined, content: 'created\n' },
+    ]);
+    expect(plan.managedFiles).toEqual([]);
+  });
+
+  it('rejects targeted edits to managed files', async () => {
+    const projectRoot = await createProject({ 'a.md': 'a' });
+    const edits = [{ path: 'a.md', transform: () => 'b' }];
+
+    await expect(createChangePlan({ projectRoot, owners: [skill], files: [], edits, managedFiles: [createRecord('a.md', 'a')] })).rejects.toThrow(
+      'a.md is managed and cannot receive a targeted edit',
+    );
+  });
+
   it('plans nothing on a repeat run after applying', async () => {
     const projectRoot = await createProject({ 'remove.md': 'old' });
     const options = {

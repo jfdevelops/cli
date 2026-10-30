@@ -1,6 +1,6 @@
 # @jfdevelops/cli
 
-Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and three required convention skills. The `jfdevelops` executable currently supports only `--help` and `--version`; the commands below are planned.
+Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and three required convention skills. The `jfdevelops` executable supports `init`, which adopts an existing project interactively; the other commands below are planned.
 
 See [the project roadmap](ROADMAP.md) for the agreed scope, implementation milestones, and open decisions.
 
