@@ -8,7 +8,8 @@ export type DesiredFile = { path: string; owner: ManagedFileOwner; content: File
 
 export type ConflictReason = 'locally-edited' | 'unmanaged' | 'owned-elsewhere' | 'edited-before-removal' | 'not-a-file';
 
-type ChangeTarget = { path: string; owner: ManagedFileOwner };
+// currentSha256 is the file's hash when planned, so applying can detect later edits; undefined when missing or not a file.
+type ChangeTarget = { path: string; owner: ManagedFileOwner; currentSha256: string | undefined };
 
 export type PlannedChange =
   | (ChangeTarget & { action: 'create' | 'update'; content: FileContent; sha256: string })
@@ -57,8 +58,13 @@ async function readCurrentFile(path: string): Promise<CurrentFile> {
   }
 }
 
+function getCurrentSha256(current: CurrentFile) {
+
+  return current.kind === 'file' ? current.sha256 : undefined;
+}
+
 function planDesiredFile(file: DesiredFile, record: ManagedFile | undefined, current: CurrentFile, ownerKeys: Set<string>) {
-  const target = { path: file.path, owner: file.owner };
+  const target = { path: file.path, owner: file.owner, currentSha256: getCurrentSha256(current) };
   const sha256 = hashContent(file.content);
   const isSameOwner = record !== undefined && getOwnerKey(record.owner) === getOwnerKey(file.owner);
 
@@ -102,7 +108,7 @@ function planDesiredFile(file: DesiredFile, record: ManagedFile | undefined, cur
 }
 
 function planRemoval(record: ManagedFile, current: CurrentFile): PlannedChange {
-  const target = { path: record.path, owner: record.owner };
+  const target = { path: record.path, owner: record.owner, currentSha256: getCurrentSha256(current) };
 
   if (current.kind === 'missing') {
 
@@ -176,6 +182,7 @@ export async function createChangePlan({ projectRoot, managedFiles = [], files, 
     changes,
     conflicts: changes.filter((change) => change.action === 'conflict'),
     hasChanges: changes.some((change) => change.action !== 'unchanged'),
+    previousManagedFiles: managedFiles,
     managedFiles: computeManagedFiles(managedFiles, changes),
   };
 }
