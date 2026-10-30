@@ -14,11 +14,19 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "check": "node scripts/check-skills.mjs",
+    "check": "pnpm typecheck && pnpm test && pnpm check:skills",
+    "check:skills": "node scripts/check-skills.mjs",
+    "typecheck": "tsc",
+    "test": "vitest run",
     "skills:sync": "node ../skills/scripts/sync-agent-skills.mjs ."
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }
