@@ -18,13 +18,16 @@
     "check:skills": "node scripts/check-skills.mjs",
     "typecheck": "tsc",
     "test": "vitest run",
-    "skills:sync": "node ../skills/scripts/sync-agent-skills.mjs ."
+    "skills:sync": "node ../skills/scripts/sync-agent-skills.mjs .",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "commander": "^15.0.0"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@types/node": "^22.20.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
