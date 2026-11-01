@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Project scaffolding and package-owned skill discovery for jfdevelops",
   "type": "module",
   "license": "MIT",
