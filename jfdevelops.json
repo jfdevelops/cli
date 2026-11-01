@@ -9,7 +9,7 @@
         "version": "0.1.0",
         "path": "./skills/jf-naming-conventions"
       },
-      "sha256": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9",
+      "sha256": "2425a72155584c03d30f99b70947c216a7597058621e9cea1691be10a4f8b48d",
       "files": {
         "SKILL.md": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9"
       }
@@ -22,7 +22,7 @@
         "version": "0.1.0",
         "path": "./skills/jf-coding-conventions"
       },
-      "sha256": "26a9c9a5cadf7411854b77fbfe6c5e4b0395aa7954c6d4c7523aeb63726fdec9",
+      "sha256": "f2f2ab2a97549531bcf3e79617516ac07481a8b35671bb39b1816a3e2303aba2",
       "files": {
         "SKILL.md": "26a9c9a5cadf7411854b77fbfe6c5e4b0395aa7954c6d4c7523aeb63726fdec9"
       }
@@ -35,7 +35,7 @@
         "version": "0.1.0",
         "path": "./skills/jf-git"
       },
-      "sha256": "6821cf9a9b7f657d3655a12618a9858fdbb14b24db03e8d65f52f8290b5ed21d",
+      "sha256": "4793bd62062321475488c71f75569d1205ea9e895118514b43ede9a8fa2461f1",
       "files": {
         "references/branches.md": "78628604155f3f21591af3282994ac09002607fc10eba15d04a52eef956e4d45",
         "references/commits.md": "469359cb0aea1cb210d46297cdf46f56df18140d68177cd75734cd306df263a0",
