@@ -11,6 +11,7 @@ type InitConfigOptions = {
   name: string;
   packageManager: PackageManagerName;
   targets: ConfirmedTarget[];
+  addons: ProjectConfig['addons'];
   selectedSkills: CatalogSkill[];
   missingSourceSkills: ProjectConfig['skills'];
   managedFiles: ManagedFile[];
@@ -33,7 +34,7 @@ export function createInitConfig(options: InitConfigOptions): z.input<typeof pro
   );
   const selectedSkills = options.selectedSkills.map((skill) => ({
     name: skill.name,
-    required: existingSkills.get(skill.name)?.required ?? false,
+    required: skill.required || (existingSkills.get(skill.name)?.required ?? false),
     source: skill.source,
   }));
   const targets = options.targets.map((target) => {
@@ -48,7 +49,7 @@ export function createInitConfig(options: InitConfigOptions): z.input<typeof pro
     project: { name: options.name, packageManager: options.packageManager },
     ...(existing?.formatter ? { formatter: existing.formatter } : {}),
     targets,
-    addons: existing?.addons ?? [],
+    addons: options.addons,
     skills: [...selectedSkills, ...retainedSkills].sort((left, right) => compareStrings(left.name, right.name)),
     managedFiles,
   };

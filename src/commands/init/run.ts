@@ -1,5 +1,7 @@
 import { parseProjectConfig } from '../../config/read.js';
 import { writeProjectConfig } from '../../config/write.js';
+import { describeDevelopmentDependency, installDevelopmentDependency, type DependencyInstaller } from '../../dependencies/install.js';
+import { detectIntegrations } from '../../detect/integration.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { detectProject, type ProjectDetection } from '../../detect/project.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
@@ -8,16 +10,24 @@ import { createChangePlan } from '../../plan/create.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { buildSkillCatalog, type SkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
+import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from './config.js';
+import { confirmIntegrations, filterAddonSkills } from './integrations.js';
 import { describePlan, resolveConflicts } from './review.js';
 import { findMissingSourceSkills, selectSkills } from './skills.js';
 import { confirmTargets } from './targets.js';
 
-export type InitOptions = { directory: string; version: string; prompter: Prompter };
+export type InitOptions = { directory: string; version: string; prompter: Prompter; installDependency?: DependencyInstaller };
 
 export type InitStatus = 'complete' | 'incomplete' | 'unchanged' | 'cancelled' | 'failed';
 
 const packageManagers: PackageManagerName[] = ['pnpm', 'npm', 'yarn', 'bun'];
+
+function hasCliDependency(project: ProjectDetection) {
+  const { dependencies, devDependencies, optionalDependencies } = project.manifest;
+
+  return '@jfdevelops/cli' in { ...dependencies, ...devDependencies, ...optionalDependencies };
+}
 
 async function choosePackageManager(project: ProjectDetection, prompter: Prompter) {
   if (project.packageManager) {
@@ -61,7 +71,7 @@ function reportResult(result: ApplyResult, prompter: Prompter) {
   }
 }
 
-async function adoptProject({ directory, version, prompter }: InitOptions): Promise<InitStatus> {
+async function adoptProject({ directory, version, prompter, installDependency = installDevelopmentDependency }: InitOptions): Promise<InitStatus> {
   const project = await detectProject(directory);
 
   for (const warning of project.warnings) {
@@ -70,7 +80,11 @@ async function adoptProject({ directory, version, prompter }: InitOptions): Prom
 
   const packageManager = await choosePackageManager(project, prompter);
   const targets = await confirmTargets(project.targets, prompter);
-  const catalog = await buildSkillCatalog(project.root, ['.', ...targets.map((target) => target.path)]);
+  const scopes = ['.', ...targets.map((target) => target.path)];
+  const integrations = await detectIntegrations(project.root, scopes);
+  const addons = await confirmIntegrations(integrations, project.config?.addons ?? [], prompter);
+  const discoveredCatalog = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
+  const catalog = filterAddonSkills(discoveredCatalog, integrations, addons);
 
   reportCatalog(catalog, prompter);
 
@@ -98,17 +112,24 @@ async function adoptProject({ directory, version, prompter }: InitOptions): Prom
     ),
     owners: [...ownerNames].map((name) => ({ type: 'skill' as const, name })),
   });
-  const configOptions = { existing: project.config, version, name: project.name, packageManager, targets, selectedSkills, missingSourceSkills };
+  const configOptions = { existing: project.config, version, name: project.name, packageManager, targets, addons, selectedSkills, missingSourceSkills };
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
   const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(project.config);
+  const needsCliDependency = !hasCliDependency(project);
 
-  if (!plan.hasChanges && !isConfigChanged) {
+  if (!plan.hasChanges && !isConfigChanged && !needsCliDependency) {
     prompter.outro('Already up to date. No changes needed.');
 
     return 'unchanged';
   }
 
-  prompter.note(describePlan(plan, isConfigChanged).join('\n'), 'Planned changes');
+  const plannedChanges = describePlan(plan, isConfigChanged);
+
+  if (needsCliDependency) {
+    plannedChanges.push(`Install development dependency: ${describeDevelopmentDependency(packageManager, '@jfdevelops/cli', version)}`);
+  }
+
+  prompter.note(plannedChanges.join('\n'), 'Planned changes');
 
   const resolutions = await resolveConflicts(plan, prompter);
 
@@ -118,10 +139,21 @@ async function adoptProject({ directory, version, prompter }: InitOptions): Prom
 
   const result = await applyChangePlan({ projectRoot: project.root, plan, resolutions });
 
+  let dependencyError: unknown;
+
+  if (needsCliDependency) {
+    try {
+      await installDependency({ directory: project.root, packageManager, packageName: '@jfdevelops/cli', version });
+    } catch (error) {
+      dependencyError = error;
+      prompter.error(`Could not install @jfdevelops/cli: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   await writeProjectConfig(project.root, createInitConfig({ ...configOptions, managedFiles: result.managedFiles }));
   reportResult(result, prompter);
 
-  if (!result.isComplete) {
+  if (!result.isComplete || dependencyError) {
     prompter.outro('Init finished with errors. Run it again to retry the failed files.');
 
     return 'incomplete';

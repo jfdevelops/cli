@@ -11,6 +11,9 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
+      '@jfdevelops/skills':
+        specifier: 0.1.0
+        version: 0.1.0
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -110,6 +113,10 @@ packages:
   '@clack/prompts@1.8.1':
     resolution: {integrity: sha512-dlT1m5e/0yUL0kRNcQn7yGLVThkgbB0Ga/1AmfDDC/8ik6AIiSf2QLQO2zPYvefsHP0aFgxO93cVLCCfDp7kzQ==}
     engines: {node: '>= 20.12.0'}
+
+  '@jfdevelops/skills@0.1.0':
+    resolution: {integrity: sha512-aJRJKSmjaNFf/S/Y0cmYDgWfjFhnb0hFkVOUBWU9x7hCdQRV2P5RGaEY5FxvEtQTeVLrJiKNedBffss2dlIP+Q==}
+    engines: {node: '>=22'}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -806,6 +813,8 @@ snapshots:
       fast-string-width: 3.0.2
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
+
+  '@jfdevelops/skills@0.1.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

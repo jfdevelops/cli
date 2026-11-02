@@ -60,6 +60,18 @@ describe('buildSkillCatalog', () => {
     expect(catalog.skills).toEqual([]);
     expect(catalog.problems).toEqual([{ package: 'broken@1.0.0', message: expect.stringContaining('Invalid jfdevelops metadata') }]);
   });
+
+  it('includes explicitly supplied required packages without declaring them in the project', async () => {
+    const root = await createProject({
+      'package.json': { name: 'app' },
+      ...createSkillPackage('shared', { name: '@jfdevelops/skills', version: '0.1.0', skills: ['jf-git'] }),
+    });
+    const catalog = await buildSkillCatalog(root, ['.'], [{ directory: join(root, 'shared'), scope: '.', required: true }]);
+
+    expect(catalog.skills).toMatchObject([
+      { name: 'jf-git', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' }, scopes: ['.'] },
+    ]);
+  });
 });
 
 describe('findInstalledPackage', () => {

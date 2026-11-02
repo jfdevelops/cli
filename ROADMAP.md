@@ -178,7 +178,7 @@ Validate content parity and test actual discovery in the supported agent version
 - [x] Add metadata/path validation, skill tests, package-content checks, and CI configuration.
 - [x] Install Commander and Clack and verify dependency imports/parsing.
 
-Both packages are unpublished. The CLI is private and has no command executable yet. The CLI currently consumes checked-in snapshots from the local skills repository; after the first shared-skills release, pin that package as a development dependency and synchronize from the installed version. Configured CI still needs a remote run after authorized pushes.
+Both packages were first published as version `0.1.0`. The CLI ships a command executable and pins the shared-skills package so required conventions are available during project adoption. CI runs the supported platform and Node.js matrix; releases are published through the configured Changesets workflow.
 
 ### 1. Shared engine — complete
 
@@ -190,11 +190,11 @@ Both packages are unpublished. The CLI is private and has no command executable 
 
 Completion: representative new and existing project fixtures produce correct discovery and change plans, preserve unrelated content, and support repeat runs without duplicate changes.
 
-### 2. Existing-project `init` — next
+### 2. Existing-project `init` — complete
 
 - [x] Add the command entry point, Commander routing/help, and Clack prompt boundary.
-- [ ] Confirm detected targets/integrations and select skills.
-- [ ] Preview and apply setup, instruction pointers, CLI dependency, and configuration.
+- [x] Confirm detected targets/integrations and select skills.
+- [x] Preview and apply setup, instruction pointers, CLI dependency, and configuration.
 - [x] Cover cancellation, conflicts, partial failures, and unchanged repeat runs.
 
 Completion: initialize an existing project, select skills, review the changes, and install them without disturbing its files or Git history. This is the first usable product milestone.

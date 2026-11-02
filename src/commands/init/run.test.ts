@@ -6,7 +6,7 @@ import { readProjectConfig } from '../../config/read.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question, type Respond } from '../../testing/prompter.js';
 import { createSkillPackage } from '../../testing/skill-package.js';
-import { runInit } from './run.js';
+import { runInit, type InitOptions } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
 
@@ -58,6 +58,19 @@ async function readText(projectRoot: string, path: string) {
   return readFile(join(projectRoot, path), 'utf8');
 }
 
+async function installTestDependency({ directory, packageName, version }: Parameters<NonNullable<InitOptions['installDependency']>>[0]) {
+  const path = join(directory, 'package.json');
+  const manifest = JSON.parse(await readFile(path, 'utf8')) as { devDependencies?: Record<string, string> };
+
+  manifest.devDependencies = { ...manifest.devDependencies, [packageName]: version };
+  await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function runTestInit(options: Omit<InitOptions, 'installDependency'>) {
+
+  return runInit({ ...options, installDependency: installTestDependency });
+}
+
 afterEach(async () => {
   await Promise.all(fixtures.splice(0).map((fixture) => fixture.remove()));
 });
@@ -67,7 +80,7 @@ describe('runInit', () => {
     const projectRoot = await createProject(createProjectFiles());
     const { prompter, transcript } = createScriptedPrompter(answer(['build-forms']));
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
 
     for (const directory of ['.agents/skills', '.claude/skills', '.cursor/skills', '.github/skills']) {
       expect(existsSync(join(projectRoot, directory, 'build-forms/SKILL.md'))).toBe(true);
@@ -83,33 +96,44 @@ describe('runInit', () => {
       generator: { package: '@jfdevelops/cli', version: '0.1.0' },
       project: { name: 'shop', packageManager: 'pnpm' },
       targets: [{ path: '.', kind: 'app', options: {} }],
-      skills: [{ name: 'build-forms', required: false, source: { package: '@acme/forms', version: '1.0.0', path: './skills/build-forms' } }],
+      skills: [
+        { name: 'build-forms', required: false, source: { package: '@acme/forms', version: '1.0.0', path: './skills/build-forms' } },
+        { name: 'jf-coding-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
+        { name: 'jf-git', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
+        { name: 'jf-naming-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
+      ],
     });
-    expect(config?.managedFiles.map((file) => file.path)).toEqual([
+    expect(config?.managedFiles.filter((file) => file.owner.type === 'skill' && file.owner.name === 'build-forms').map((file) => file.path)).toEqual([
       '.agents/skills/build-forms/SKILL.md',
       '.claude/skills/build-forms/SKILL.md',
       '.cursor/skills/build-forms/SKILL.md',
       '.github/skills/build-forms/SKILL.md',
     ]);
+    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0' } });
     expect(transcript).toContain('outro: Project initialized.');
 
     const repeat = createScriptedPrompter(answer(['build-forms']));
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter: repeat.prompter })).resolves.toBe('unchanged');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: repeat.prompter })).resolves.toBe('unchanged');
     expect(repeat.transcript).not.toContain('? Apply these changes?');
   });
 
   it('removes deselected skills and their instruction links on a later run', async () => {
     const projectRoot = await createProject(createProjectFiles());
 
-    await runInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['build-forms', 'validate-forms'])).prompter });
+    await runTestInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['build-forms', 'validate-forms'])).prompter });
     await expect(
-      runInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['validate-forms'])).prompter }),
+      runTestInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['validate-forms'])).prompter }),
     ).resolves.toBe('complete');
 
     expect(existsSync(join(projectRoot, '.agents/skills/build-forms'))).toBe(false);
     expect(await readText(projectRoot, 'AGENTS.md')).not.toContain('build-forms');
-    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual(['validate-forms']);
+    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
+      'jf-coding-conventions',
+      'jf-git',
+      'jf-naming-conventions',
+      'validate-forms',
+    ]);
   });
 
   it('writes nothing when cancelled or declined', async () => {
@@ -117,8 +141,8 @@ describe('runInit', () => {
     const cancelled = createScriptedPrompter(answer([], (question) => (question.kind === 'multiselect' ? 'cancel' : undefined)));
     const declined = createScriptedPrompter(answer(['build-forms'], (question) => (question.kind === 'confirm' && question.message === 'Apply these changes?' ? false : undefined)));
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter: cancelled.prompter })).resolves.toBe('cancelled');
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter: declined.prompter })).resolves.toBe('cancelled');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: cancelled.prompter })).resolves.toBe('cancelled');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: declined.prompter })).resolves.toBe('cancelled');
     expect(declined.transcript).toContain('cancel: Init cancelled. No files were changed.');
     expect(existsSync(join(projectRoot, 'AGENTS.md'))).toBe(false);
     expect(existsSync(join(projectRoot, 'jfdevelops.json'))).toBe(false);
@@ -128,7 +152,7 @@ describe('runInit', () => {
     const projectRoot = await createProject(createProjectFiles({ '.claude/skills/build-forms/SKILL.md': 'my own version\n' }));
     const { prompter, transcript } = createScriptedPrompter(answer(['build-forms']));
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
 
     expect(transcript).toContain('? How should .claude/skills/build-forms/SKILL.md be handled?');
     expect(transcript.find((line) => line.startsWith('note [.claude/skills/build-forms/SKILL.md already exists'))).toContain('-my own version');
@@ -152,16 +176,61 @@ describe('runInit', () => {
       }),
     );
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
     expect(transcript).not.toContain('? Use these target types?');
-    expect(await readProjectConfig(projectRoot)).toMatchObject({ project: { packageManager: 'npm' }, targets: [{ path: '.', kind: 'library' }], skills: [] });
+    expect(await readProjectConfig(projectRoot)).toMatchObject({
+      project: { packageManager: 'npm' },
+      targets: [{ path: '.', kind: 'library' }],
+      skills: [
+        { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-git', required: true },
+        { name: 'jf-naming-conventions', required: true },
+      ],
+    });
+  });
+
+  it('offers detected integrations independently and records only confirmed choices', async () => {
+    const projectRoot = await createProject(
+      createProjectFiles({
+        'package.json': {
+          name: 'shop',
+          private: true,
+          packageManager: 'pnpm@10.28.1',
+          dependencies: { next: '15.0.0', convex: '1.0.0', '@tanstack/react-query': '5.0.0', '@acme/forms': '1.0.0' },
+          devDependencies: { portless: '1.0.0' },
+        },
+      }),
+    );
+    const { prompter, transcript } = createScriptedPrompter(answer(['convex', '@tanstack/react-query']));
+
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
+
+    expect(transcript).toContain('? Which detected integrations should this project adopt?');
+    expect((await readProjectConfig(projectRoot))?.addons).toEqual([
+      { name: '@tanstack/react-query', options: {} },
+      { name: 'convex', options: {} },
+    ]);
+  });
+
+  it('reports an incomplete result when the CLI development dependency cannot be installed', async () => {
+    const projectRoot = await createProject(createProjectFiles());
+    const { prompter, transcript } = createScriptedPrompter(answer([]));
+    const installDependency = async () => {
+      throw new Error('registry unavailable');
+    };
+
+    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency })).resolves.toBe('incomplete');
+
+    expect(transcript).toContain('error: Could not install @jfdevelops/cli: registry unavailable');
+    expect(transcript).toContain('outro: Init finished with errors. Run it again to retry the failed files.');
+    expect(existsSync(join(projectRoot, 'jfdevelops.json'))).toBe(true);
   });
 
   it('reports detection errors without writing', async () => {
     const projectRoot = await createProject({ 'README.md': '# Empty\n' });
     const { prompter, transcript } = createScriptedPrompter(answer([]));
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('failed');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('failed');
     expect(transcript).toContain('cancel: Init failed.');
     expect(transcript.some((line) => line.startsWith('error: No package.json found'))).toBe(true);
   });
@@ -169,15 +238,20 @@ describe('runInit', () => {
   it('keeps enabled skills whose source package is no longer installed', async () => {
     const projectRoot = await createProject(createProjectFiles());
 
-    await runInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['build-forms'])).prompter });
+    await runTestInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['build-forms'])).prompter });
     await writeFile(join(projectRoot, 'package.json'), JSON.stringify({ name: 'shop', private: true, packageManager: 'pnpm@10.28.1' }));
 
     const { prompter, transcript } = createScriptedPrompter(answer([]));
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.not.toBe('failed');
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.not.toBe('failed');
     expect(transcript).toContain('warn: build-forms is enabled but @acme/forms is not installed; its files are left as they are.');
     expect(existsSync(join(projectRoot, '.agents/skills/build-forms/SKILL.md'))).toBe(true);
     expect(await readText(projectRoot, 'AGENTS.md')).toContain('- [build-forms](.agents/skills/build-forms/SKILL.md): @acme/forms is not installed');
-    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual(['build-forms']);
+    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
+      'build-forms',
+      'jf-coding-conventions',
+      'jf-git',
+      'jf-naming-conventions',
+    ]);
   });
 });

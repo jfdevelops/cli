@@ -1,11 +1,13 @@
 import { Command } from 'commander';
 import { runInit } from './commands/init/run.js';
+import type { DependencyInstaller } from './dependencies/install.js';
 import { createClackPrompter } from './prompts/clack.js';
 import type { Prompter } from './prompts/prompter.js';
 
 export type ProgramDependencies = {
   createPrompter: () => Prompter;
   isInteractive: () => boolean;
+  installDependency?: DependencyInstaller;
 };
 
 const defaultDependencies: ProgramDependencies = {
@@ -29,7 +31,12 @@ export function createProgram(version: string, dependencies = defaultDependencie
         program.error('jfdevelops init is interactive; run it in a terminal.');
       }
 
-      const status = await runInit({ directory, version, prompter: dependencies.createPrompter() });
+      const status = await runInit({
+        directory,
+        version,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+      });
 
       if (status === 'incomplete' || status === 'failed') {
         process.exitCode = 1;

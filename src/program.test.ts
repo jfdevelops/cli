@@ -74,7 +74,7 @@ describe('init command', () => {
 
     fixtures.push(fixture);
 
-    await runProgram(['init', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
+    await runProgram(['init', fixture.root], { createPrompter: () => prompter, isInteractive: () => true, installDependency: async () => undefined });
 
     expect(transcript[0]).toBe('intro: jfdevelops init');
     expect(transcript.at(-1)).toBe('outro: Project initialized.');

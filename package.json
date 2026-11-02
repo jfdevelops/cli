@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
+    "@jfdevelops/skills": "0.1.0",
     "commander": "^15.0.0",
     "diff": "^9.0.0",
     "tinyglobby": "^0.2.17",
