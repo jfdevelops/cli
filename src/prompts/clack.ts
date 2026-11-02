@@ -27,6 +27,7 @@ export function createClackPrompter(): Prompter {
     warn: (message) => clack.log.warn(message),
     success: (message) => clack.log.success(message),
     error: (message) => clack.log.error(message),
+    text: async ({ message, initialValue, placeholder }) => unwrap(await clack.text(withDefined({ message, initialValue, placeholder }))),
     // Clack's option types are conditional on the value type, so prompts run with strings and narrow back
     // to the caller's value type, which only the provided choices can produce.
     select: async <Value extends string>({ message, choices, initialValue }: { message: string; choices: Choice<Value>[]; initialValue?: Value }) =>

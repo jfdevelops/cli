@@ -201,10 +201,10 @@ Completion: initialize an existing project, select skills, review the changes, a
 
 ### 3. New-project `create`
 
-- [ ] Define initial app and library templates and their follow-up questions.
-- [ ] Reuse the setup engine for chosen addons and skills.
+- [x] Define initial app and library templates and their follow-up questions.
+- [x] Reuse the setup engine for chosen addons and skills.
 - [ ] Establish formatter-independent style enforcement.
-- [ ] Generate and verify the new project's foundation and initial Git commit.
+- [x] Generate and verify the new project's foundation and initial Git commit.
 
 Completion: both app and library flows generate a usable project with only selected integrations, correct skills, recorded choices, and passing applicable checks.
 

@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { runCreate } from './commands/create/run.js';
 import { runInit } from './commands/init/run.js';
 import type { DependencyInstaller } from './dependencies/install.js';
 import { createClackPrompter } from './prompts/clack.js';
@@ -21,6 +22,27 @@ export function createProgram(version: string, dependencies = defaultDependencie
     .version(version, '-v, --version', 'Show the CLI version')
     .helpOption('-h, --help', 'Show command help')
     .helpCommand(false);
+
+  program
+    .command('create')
+    .description('Create a new app or library from a reviewed template')
+    .argument('[directory]', 'project destination')
+    .action(async (directory: string | undefined) => {
+      if (!dependencies.isInteractive()) {
+        program.error('jfdevelops create is interactive; run it in a terminal.');
+      }
+
+      const status = await runCreate({
+        ...(directory ? { directory } : {}),
+        version,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+      });
+
+      if (status === 'incomplete' || status === 'failed') {
+        process.exitCode = 1;
+      }
+    });
 
   program
     .command('init')

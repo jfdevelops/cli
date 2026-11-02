@@ -39,8 +39,9 @@ export function createInitConfig(options: InitConfigOptions): z.input<typeof pro
   }));
   const targets = options.targets.map((target) => {
     const { template, options: targetOptions = {} } = existingTargets.get(target.path) ?? {};
+    const selectedTemplate = target.template ?? template;
 
-    return { path: target.path, kind: target.kind, ...(template ? { template } : {}), options: targetOptions };
+    return { path: target.path, kind: target.kind, ...(selectedTemplate ? { template: selectedTemplate } : {}), options: targetOptions };
   });
 
   return {

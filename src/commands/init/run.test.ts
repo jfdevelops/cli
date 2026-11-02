@@ -49,6 +49,11 @@ function answer(skills: string[], overrides: (question: Question) => ReturnType<
       return true;
     }
 
+    if (question.kind === 'text') {
+
+      return question.initialValue ?? '';
+    }
+
     return question.initialValue ?? question.choices[0]?.value ?? '';
   };
 }

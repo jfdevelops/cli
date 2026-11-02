@@ -43,10 +43,11 @@ describe('createProgram', () => {
     expect(error).toMatchObject({ code: 'commander.version', exitCode: 0 });
   });
 
-  it('prints help listing init when no command is given', async () => {
+  it('prints help listing create and init when no command is given', async () => {
     const { output, error } = await runProgram([]);
 
     expect(output).toContain('Usage: jfdevelops [options] [command]');
+    expect(output).toMatch(/create \[directory\]\s+Create a new app or library/);
     expect(output).toMatch(/init \[directory\]\s+Adopt an existing project/);
     expect(error).toMatchObject({ exitCode: 0 });
   });
@@ -56,6 +57,39 @@ describe('createProgram', () => {
 
     expect(output).toContain("unknown option '--nope'");
     expect(error).toMatchObject({ exitCode: 1 });
+  });
+});
+
+describe('create command', () => {
+  it('routes a destination through the create flow', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter((question) => {
+      if (question.kind === 'text') {
+
+        return 'site';
+      }
+
+      if (question.kind === 'confirm') {
+
+        return false;
+      }
+
+      if (question.kind === 'multiselect') {
+
+        return [];
+      }
+
+      return question.initialValue ?? question.choices[0]?.value ?? '';
+    });
+
+    fixtures.push(fixture);
+
+    await runProgram(['create', destination], { createPrompter: () => prompter, isInteractive: () => true, installDependency: async () => undefined });
+
+    expect(transcript[0]).toBe('intro: jfdevelops create');
+    expect(transcript.at(-1)).toBe('cancel: Project creation cancelled. No files were changed.');
+    expect(existsSync(destination)).toBe(false);
   });
 });
 

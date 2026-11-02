@@ -1,7 +1,7 @@
 import type { ProjectDetection } from '../../detect/project.js';
 import type { Prompter } from '../../prompts/prompter.js';
 
-export type ConfirmedTarget = { path: string; kind: 'app' | 'library' };
+export type ConfirmedTarget = { path: string; kind: 'app' | 'library'; template?: string };
 
 type DetectedTarget = ProjectDetection['targets'][number];
 

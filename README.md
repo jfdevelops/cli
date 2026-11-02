@@ -1,6 +1,6 @@
 # @jfdevelops/cli
 
-Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and three required convention skills. The `jfdevelops` executable supports `init`, which adopts an existing project interactively; the other commands below are planned.
+Interactive project setup and skill discovery for new and existing projects. The `jfdevelops` executable supports `create` for new TypeScript apps and libraries and `init` for adopting existing projects; the other commands below are planned.
 
 See [the project roadmap](ROADMAP.md) for the agreed scope, implementation milestones, and open decisions.
 
@@ -37,4 +37,4 @@ pnpm skills:sync
 
 ## Next implementation step
 
-Milestone 2 is complete: `init` detects and confirms targets and supported integrations, installs required and selected skills, previews conflicts and dependency work, retains the CLI, and records the result without replacing project-owned content. The next milestone is `create`: define the initial app and library templates, reuse the setup engine, establish formatter-independent enforcement, and optionally initialize the generated project's Git history.
+Milestone 2 is complete. Milestone 3 now includes reviewed `create` flows for a minimal Node.js TypeScript app and a publishable TypeScript library, with required skills, configuration, dependency installation, build verification, and optional Git initialization on `main` with the foundation commit. Formatter-independent enforcement is the remaining Milestone 3 work.
