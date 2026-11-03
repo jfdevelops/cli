@@ -175,7 +175,14 @@ export function createProgram(version: string, dependencies = defaultDependencie
       }
     });
 
-  program.action(() => {
+  // Extra words reach this action only when they match no command, so report them as unknown.
+  program.allowExcessArguments().action(() => {
+    const [unknownCommand] = program.args;
+
+    if (unknownCommand) {
+      program.error(`error: unknown command '${unknownCommand}'. Run jfdevelops --help to see the available commands.`);
+    }
+
     program.help();
   });
 

@@ -52,6 +52,13 @@ describe('createProgram', () => {
     expect(error).toMatchObject({ exitCode: 0 });
   });
 
+  it('names unknown commands', async () => {
+    const { output, error } = await runProgram(['deploy']);
+
+    expect(output).toContain("error: unknown command 'deploy'. Run jfdevelops --help to see the available commands.");
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+
   it('rejects unknown options', async () => {
     const { output, error } = await runProgram(['--nope']);
 
