@@ -1,5 +1,26 @@
 # @jfdevelops/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 49e51d1: Add `jfdevelops add` to extend a configured project. `add --list` shows compatible additions without changing anything. `add skill <name>` enables one skill from an installed package. `add addon <name>` adopts an installed integration, or installs Convex, Portless, or an individual TanStack or jfdevelops library after confirmation, and offers its skills. `add package <name>` scaffolds a TypeScript library in the workspace and registers its directory when needed. Running `add` alone browses the available additions. `skills sync` now asks which version to use when a skill is installed in more than one version.
+- a45c912: Complete existing-project adoption by detecting supported integrations for explicit confirmation, always installing the published shared convention skills as required, previewing and retaining the exact CLI version as a development dependency, and recording the confirmed addons.
+- f62df87: Add `jfdevelops create` with reviewed minimal TypeScript app and library templates, required shared skills, project configuration, Prettier or Biome formatting with shared ESLint Stylistic spacing enforcement, dependency installation and verification, optional Git initialization with a foundation commit, cancellation safety, and non-empty destination protection.
+- 593d68c: Add `jfdevelops create skills` for library authors. It selects the owning package in a workspace (or `--package <name>`), offers existing `SKILL.md` directories for registration, scaffolds new skills from a name and description, or handles a single `--path <skill-directory>`. It records them in `jfdevelops.skills`, adds their directory to `files` when it would otherwise be left out, and then verifies the registrations and the `npm pack` contents so consumers receive every skill file. Repeat runs add no duplicate registrations.
+- 8827667: Add `jfdevelops skills` to report whether each enabled skill is current, outdated after a package upgrade, locally modified, or missing its source package, with `--check` exiting 1 when anything needs syncing. Add `jfdevelops skills sync` to update unchanged skill copies to the installed versions, ask before replacing locally edited copies, offer to remove skills whose source package is gone, and record the synchronized versions. The AGENTS.md skill list is now sorted by name.
+
+### Patch Changes
+
+- a345b6e: Make projects from `jfdevelops create` pass their own `format:check` and lint:
+  - Pin TypeScript 6.0 in templates, because typescript-eslint does not support TypeScript 7 yet.
+  - Keep Prettier and Biome away from CLI-managed skill copies, `jfdevelops.json`, and lockfiles.
+  - Format the generated files once after installing dependencies, and record their resulting hashes.
+  - Write the AGENTS.md managed block with the blank lines Markdown formatters expect. Existing blocks are updated on the next `init`, `add`, or `skills sync`.
+- 8037c5f: Report `jfdevelops <unknown>` as an unknown command with a pointer to `--help`, instead of "too many arguments".
+- 5276f04: Document getting started, every command with its terminal requirements and exit codes, skill updates and conflicts, `jfdevelops.json` and its compatibility policy, and authoring library skills.
+- 67ed9dd: Run package managers and Git through a shell on Windows so `init`, `create`, and `add addon` can install dependencies and verify projects there; Node refuses to launch the package managers' `.cmd` shims directly.
+
 ## 0.1.0
 
 ### Minor Changes
