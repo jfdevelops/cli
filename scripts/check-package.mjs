@@ -75,7 +75,7 @@ try {
     expectCli(args, { status: 1, output: [`jfdevelops ${name} is interactive`] });
   }
 
-  assert.deepEqual(await readdir(project), ['jfdevelops.json', 'package.json'], 'Commands changed the project without confirmation');
+  assert.deepEqual((await readdir(project)).sort(), ['jfdevelops.json', 'package.json'], 'Commands changed the project without confirmation');
   console.log(`Verified the packed ${manifest.name}@${manifest.version} executable and its non-interactive behavior.`);
 } finally {
   await rm(workspace, { recursive: true, force: true });
