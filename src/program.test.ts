@@ -160,6 +160,22 @@ describe('skills command', () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it('lists additions without a terminal but requires one to add', async () => {
+    const projectRoot = await createConfiguredProject();
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+    const dependencies = { createPrompter: () => prompter, isInteractive: () => false };
+
+    await runProgram(['add', '--list', '--directory', projectRoot], dependencies);
+
+    expect(transcript[0]).toBe('intro: jfdevelops add --list');
+    expect(transcript.some((line) => line.startsWith('note [Available additions]'))).toBe(true);
+
+    const { output, error } = await runProgram(['add', 'skill', 'jf-git', '--directory', projectRoot], dependencies);
+
+    expect(output).toContain('jfdevelops add is interactive; run it in a terminal, or use add --list.');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+
   it('routes sync and refuses to run it without a terminal', async () => {
     const projectRoot = await createConfiguredProject();
     const { prompter } = createScriptedPrompter(() => 'cancel');

@@ -27,6 +27,25 @@ export const projectTemplates = [
 
 const projectOwner = { type: 'project' as const };
 
+const libraryCompiler = {
+  compilerOptions: {
+    target: 'ES2024',
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    rootDir: 'src',
+    outDir: 'dist',
+    declaration: true,
+    declarationMap: true,
+    strict: true,
+    noUncheckedIndexedAccess: true,
+    exactOptionalPropertyTypes: true,
+    skipLibCheck: true,
+  },
+  include: ['src'],
+};
+
+const libraryEntry = 'export function greet(name: string) {\n\n  return `Hello, ${name}.`;\n}\n';
+
 function createJsonFile(path: string, value: unknown): DesiredFile {
 
   return { path, owner: projectOwner, content: `${JSON.stringify(value, null, 2)}\n` };
@@ -133,29 +152,36 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
     scripts: { build: 'tsc', prepack: 'tsc', ...formatting.scripts },
     devDependencies: { '@jfdevelops/cli': cliVersion, typescript: '^7.0.2', ...formatting.devDependencies },
   };
-  const compiler = {
-    compilerOptions: {
-      target: 'ES2024',
-      module: 'NodeNext',
-      moduleResolution: 'NodeNext',
-      rootDir: 'src',
-      outDir: 'dist',
-      declaration: true,
-      declarationMap: true,
-      strict: true,
-      noUncheckedIndexedAccess: true,
-      exactOptionalPropertyTypes: true,
-      skipLibCheck: true,
-    },
-    include: ['src'],
-  };
 
   return [
     ...createCommonFiles(projectName, template),
     ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
-    createJsonFile('tsconfig.json', compiler),
-    { path: 'src/index.ts', owner: projectOwner, content: 'export function greet(name: string) {\n\n  return `Hello, ${name}.`;\n}\n' },
+    createJsonFile('tsconfig.json', libraryCompiler),
+    { path: 'src/index.ts', owner: projectOwner, content: libraryEntry },
+  ];
+}
+
+/**
+ * Files for a library package inside an existing workspace. Formatting, linting, and the CLI
+ * dependency stay at the workspace root, so the package only declares what it builds with.
+ */
+export function createWorkspacePackageFiles(packageName: string) {
+  const manifest = {
+    name: packageName,
+    version: '0.0.0',
+    type: 'module',
+    files: ['dist'],
+    exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
+    scripts: { build: 'tsc', prepack: 'tsc' },
+    devDependencies: { typescript: '^7.0.2' },
+  };
+
+  return [
+    { path: 'README.md', content: `# ${packageName}\n\nWorkspace library generated with @jfdevelops/cli.\n` },
+    { path: 'package.json', content: `${JSON.stringify(manifest, null, 2)}\n` },
+    { path: 'tsconfig.json', content: `${JSON.stringify(libraryCompiler, null, 2)}\n` },
+    { path: 'src/index.ts', content: libraryEntry },
   ];
 }
 

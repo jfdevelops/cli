@@ -1,10 +1,13 @@
 import type { ProjectConfig } from '../../config/schema.js';
+import { detectIntegrations } from '../../detect/integration.js';
 import { detectProject } from '../../detect/project.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
 import { createChangePlan, type ChangePlan } from '../../plan/create.js';
 import { buildSkillCatalog, type CatalogSkill } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
+import { describeEnabledSkills } from '../../skills/listing.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
+import { filterAddonSkills } from '../init/integrations.js';
 
 type EnabledSkill = ProjectConfig['skills'][number];
 
@@ -67,12 +70,18 @@ function getSkillStatus(skill: EnabledSkill, candidates: CatalogSkill[], plan: C
   return { ...base, installedVersion: source.source.version, state, details: [...versionDetails, ...details] };
 }
 
+export type InspectSkillsOptions = {
+  // Skills whose managed files should be deleted.
+  removedSkills?: string[];
+  // Installed version to use for skills with more than one installed version, keyed by skill name.
+  selectedVersions?: Record<string, string>;
+};
+
 /**
- * Compares each enabled skill with the version installed in the project. The returned plan would
- * bring unchanged copies up to date, delete files of skills listed in `removedSkills`, and refresh the
- * AGENTS.md skill list; skills whose source is missing or ambiguous are left untouched.
+ * Reads the configured project and builds its skill catalog, keeping addon skills out until the addon
+ * is enabled. `pendingAddons` are treated as enabled so an addon being added can offer its skills.
  */
-export async function inspectSkills(directory: string, removedSkills: string[] = []) {
+export async function loadConfiguredProject(directory: string, pendingAddons: string[] = []) {
   const project = await detectProject(directory);
   const { config } = project;
 
@@ -81,40 +90,49 @@ export async function inspectSkills(directory: string, removedSkills: string[] =
   }
 
   const scopes = ['.', ...config.targets.map((target) => target.path)];
-  const catalog = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
-  const candidatesByName = new Map(
-    config.skills.map((skill) => [
-      skill.name,
-      catalog.skills.filter((candidate) => candidate.name === skill.name && candidate.source.package === skill.source.package),
-    ]),
-  );
+  const integrations = await detectIntegrations(project.root, scopes);
+  const discovered = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
+
+  const addons = [...config.addons, ...pendingAddons.map((name) => ({ name, options: {} }))];
+
+  return { project, config, integrations, catalog: filterAddonSkills(discovered, integrations, addons) };
+}
+
+export function findSkillCandidates(skill: EnabledSkill, catalogSkills: CatalogSkill[]) {
+
+  return catalogSkills.filter((candidate) => candidate.name === skill.name && candidate.source.package === skill.source.package);
+}
+
+/**
+ * Compares each enabled skill with the version installed in the project. The returned plan would
+ * bring unchanged copies up to date, delete files of removed skills, and refresh the AGENTS.md skill
+ * list; skills whose source is missing, or ambiguous without a selected version, are left untouched.
+ */
+export async function inspectSkills(directory: string, { removedSkills = [], selectedVersions = {} }: InspectSkillsOptions = {}) {
+  const { project, config, integrations, catalog } = await loadConfiguredProject(directory);
+  const candidatesByName = new Map(config.skills.map((skill) => [skill.name, findSkillCandidates(skill, catalog.skills)]));
   const removed = new Set(removedSkills);
   const sources = config.skills.flatMap((skill) => {
     const candidates = candidatesByName.get(skill.name) ?? [];
-    const [source] = candidates;
+    const selectedVersion = selectedVersions[skill.name];
+    const source = candidates.length === 1 ? candidates[0] : candidates.find((candidate) => candidate.source.version === selectedVersion);
 
-    return source && candidates.length === 1 && !removed.has(skill.name) ? [source] : [];
+    return source && !removed.has(skill.name) ? [source] : [];
   });
   const sourceNames = new Set(sources.map((source) => source.name));
-  const keptSkills = config.skills
-    .filter((skill) => !sourceNames.has(skill.name) && !removed.has(skill.name))
-    .map((skill) => {
-      const [candidate] = candidatesByName.get(skill.name) ?? [];
-
-      return { name: skill.name, description: candidate?.description ?? `${skill.source.package} is not installed` };
-    });
+  const keptSkills = config.skills.filter((skill) => !sourceNames.has(skill.name) && !removed.has(skill.name));
   const plan = await createChangePlan({
     projectRoot: project.root,
     managedFiles: config.managedFiles,
     files: (await Promise.all(sources.map((source) => createSkillInstallFiles(source)))).flat(),
-    edits: createInstructionEdits([...sources, ...keptSkills], project.agentFiles),
+    edits: createInstructionEdits([...sources, ...describeEnabledSkills(keptSkills, catalog.skills)], project.agentFiles),
     owners: [...sources.map((source) => source.name), ...removedSkills].map((name) => ({ type: 'skill' as const, name })),
   });
   const statuses = config.skills.map((skill) => getSkillStatus(skill, candidatesByName.get(skill.name) ?? [], plan));
   const enabledNames = new Set(config.skills.map((skill) => skill.name));
   const availableNames = [...new Set(catalog.skills.filter((skill) => !enabledNames.has(skill.name)).map((skill) => skill.name))];
 
-  return { project, config, catalog, sources, plan, statuses, availableNames };
+  return { project, config, integrations, catalog, sources, plan, statuses, availableNames, candidatesByName };
 }
 
 export type SkillsInspection = Awaited<ReturnType<typeof inspectSkills>>;

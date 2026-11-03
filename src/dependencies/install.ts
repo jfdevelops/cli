@@ -41,13 +41,11 @@ function getArguments(packageManager: PackageManagerName, packageName: string, v
   }
 }
 
-export const installDevelopmentDependency: DependencyInstaller = async ({ directory, packageManager, packageName, version }) => {
-  await new Promise<void>((resolve, reject) => {
+function runPackageManager(directory: string, packageManager: PackageManagerName, arguments_: string[]) {
+
+  return new Promise<void>((resolve, reject) => {
     const executable = process.platform === 'win32' ? `${packageManager}.cmd` : packageManager;
-    const child = spawn(executable, getArguments(packageManager, packageName, version), {
-      cwd: directory,
-      stdio: 'inherit',
-    });
+    const child = spawn(executable, arguments_, { cwd: directory, stdio: 'inherit' });
 
     child.once('error', reject);
     child.once('exit', (code) => {
@@ -58,4 +56,27 @@ export const installDevelopmentDependency: DependencyInstaller = async ({ direct
       }
     });
   });
+}
+
+export const installDevelopmentDependency: DependencyInstaller = async ({ directory, packageManager, packageName, version }) => {
+  await runPackageManager(directory, packageManager, getArguments(packageManager, packageName, version));
+};
+
+export type PackageInstaller = (options: { directory: string; packageManager: PackageManagerName; packageName: string; isDevelopment: boolean }) => Promise<void>;
+
+function getPackageArguments(packageManager: PackageManagerName, packageName: string, isDevelopment: boolean) {
+  const command = packageManager === 'npm' ? 'install' : 'add';
+  const developmentFlag = packageManager === 'npm' || packageManager === 'pnpm' ? '--save-dev' : '--dev';
+
+  return [command, ...(isDevelopment ? [developmentFlag] : []), packageName];
+}
+
+export function describePackageInstall(packageManager: PackageManagerName, packageName: string, isDevelopment: boolean) {
+
+  return [packageManager, ...getPackageArguments(packageManager, packageName, isDevelopment)].join(' ');
+}
+
+// Adds the latest version of a package, as a development dependency when requested.
+export const installPackage: PackageInstaller = async ({ directory, packageManager, packageName, isDevelopment }) => {
+  await runPackageManager(directory, packageManager, getPackageArguments(packageManager, packageName, isDevelopment));
 };

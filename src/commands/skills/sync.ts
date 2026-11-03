@@ -1,11 +1,10 @@
 import { parseProjectConfig } from '../../config/read.js';
 import type { ManagedFile, ProjectConfig } from '../../config/schema.js';
 import { writeProjectConfig } from '../../config/write.js';
-import { applyChangePlan } from '../../plan/apply.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
-import { describePlan, reportApplyResult, resolveConflicts } from '../review.js';
-import { inspectSkills } from './inspect.js';
+import { confirmAndApply } from '../confirm-and-apply.js';
+import { inspectSkills, type SkillsInspection } from './inspect.js';
 
 export type SkillsSyncStatus = 'complete' | 'incomplete' | 'unchanged' | 'cancelled' | 'failed';
 
@@ -40,6 +39,33 @@ async function chooseRemovedSkills(missing: Array<{ name: string; package: strin
   });
 }
 
+// Asks which installed version to use for each skill that has more than one; unchosen skills stay as they are.
+async function chooseVersions(inspection: SkillsInspection, prompter: Prompter) {
+  const selectedVersions: Record<string, string> = {};
+
+  for (const status of inspection.statuses.filter((candidate) => candidate.state === 'ambiguous')) {
+    const candidates = inspection.candidatesByName.get(status.name) ?? [];
+    const version = await prompter.select({
+      message: `${status.name} is installed in more than one version. Which should be used?`,
+      choices: [
+        ...candidates.map((candidate) => ({
+          value: candidate.source.version,
+          label: `${candidate.source.package}@${candidate.source.version}`,
+          hint: candidate.scopes.map((scope) => (scope === '.' ? 'project root' : scope)).join(', '),
+        })),
+        { value: 'keep', label: `Keep ${status.recordedVersion}` },
+      ],
+      initialValue: 'keep',
+    });
+
+    if (version !== 'keep') {
+      selectedVersions[status.name] = version;
+    }
+  }
+
+  return selectedVersions;
+}
+
 async function syncSkills(directory: string, prompter: Prompter): Promise<SkillsSyncStatus> {
   const initial = await inspectSkills(directory);
 
@@ -47,12 +73,10 @@ async function syncSkills(directory: string, prompter: Prompter): Promise<Skills
     prompter.warn(`${problem.package}: ${problem.message}`);
   }
 
-  for (const status of initial.statuses.filter((status) => status.state === 'ambiguous')) {
-    prompter.warn(`${status.name} is left unchanged: ${status.details.join(', ')}.`);
-  }
-
   const removedSkills = await chooseRemovedSkills(initial.statuses.filter((status) => status.state === 'missing-source'), prompter);
-  const { project, config, sources, plan } = removedSkills.length > 0 ? await inspectSkills(directory, removedSkills) : initial;
+  const selectedVersions = await chooseVersions(initial, prompter);
+  const hasChoices = removedSkills.length > 0 || Object.keys(selectedVersions).length > 0;
+  const { project, config, sources, plan } = hasChoices ? await inspectSkills(directory, { removedSkills, selectedVersions }) : initial;
   const plannedConfig = parseProjectConfig(createSyncConfig(config, sources, removedSkills, plan.managedFiles));
   const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(config);
 
@@ -62,18 +86,9 @@ async function syncSkills(directory: string, prompter: Prompter): Promise<Skills
     return 'unchanged';
   }
 
-  prompter.note(describePlan(plan, isConfigChanged).join('\n'), 'Planned changes');
-
-  const resolutions = await resolveConflicts(plan, prompter);
-
-  if (!(await prompter.confirm({ message: 'Apply these changes?', initialValue: true }))) {
-    throw new PromptCancelledError('Declined');
-  }
-
-  const result = await applyChangePlan({ projectRoot: project.root, plan, resolutions });
+  const result = await confirmAndApply({ projectRoot: project.root, plan, prompter, isConfigChanged });
 
   await writeProjectConfig(project.root, createSyncConfig(config, sources, removedSkills, result.managedFiles));
-  reportApplyResult(result, prompter);
 
   if (!result.isComplete) {
     prompter.outro('Sync finished with errors. Run it again to retry the failed files.');

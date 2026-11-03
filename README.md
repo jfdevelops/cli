@@ -1,6 +1,6 @@
 # @jfdevelops/cli
 
-Interactive project setup and skill discovery for new and existing projects. The `jfdevelops` executable supports `create` for new TypeScript apps and libraries, `init` for adopting existing projects, and `skills` / `skills sync` for checking and updating enabled skills; the other commands below are planned.
+Interactive project setup and skill discovery for new and existing projects. The `jfdevelops` executable supports `create` for new TypeScript apps and libraries, `init` for adopting existing projects, `add` for skills, addons, and workspace packages, and `skills` / `skills sync` for checking and updating enabled skills; `create skills` is planned.
 
 See [the project roadmap](ROADMAP.md) for the agreed scope, implementation milestones, and open decisions.
 

@@ -1,9 +1,10 @@
 import { Command } from 'commander';
+import { runAdd, runAddList, type AdditionKind } from './commands/add/run.js';
 import { runCreate } from './commands/create/run.js';
 import { runInit } from './commands/init/run.js';
 import { runSkillsStatus } from './commands/skills/status.js';
 import { runSkillsSync } from './commands/skills/sync.js';
-import type { DependencyInstaller } from './dependencies/install.js';
+import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
 import { createClackPrompter } from './prompts/clack.js';
 import type { Prompter } from './prompts/prompter.js';
 
@@ -11,6 +12,7 @@ export type ProgramDependencies = {
   createPrompter: () => Prompter;
   isInteractive: () => boolean;
   installDependency?: DependencyInstaller;
+  installPackage?: PackageInstaller;
 };
 
 const defaultDependencies: ProgramDependencies = {
@@ -66,6 +68,56 @@ export function createProgram(version: string, dependencies = defaultDependencie
         process.exitCode = 1;
       }
     });
+
+  async function runAddCommand(options: { directory: string; kind?: AdditionKind; name?: string }) {
+    if (!dependencies.isInteractive()) {
+      program.error('jfdevelops add is interactive; run it in a terminal, or use add --list.');
+    }
+
+    const status = await runAdd({
+      ...options,
+      prompter: dependencies.createPrompter(),
+      ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
+    });
+
+    if (status === 'incomplete' || status === 'failed') {
+      process.exitCode = 1;
+    }
+  }
+
+  const add = program
+    .command('add')
+    .description('Browse and add skills, integrations, or workspace packages')
+    .option('-l, --list', 'list compatible additions without changing anything')
+    .option('-d, --directory <path>', 'project directory', '.')
+    .action(async (options: { list?: boolean; directory: string }) => {
+      if (!options.list) {
+        await runAddCommand({ directory: options.directory });
+
+        return;
+      }
+
+      if ((await runAddList({ directory: options.directory, prompter: dependencies.createPrompter() })) === 'failed') {
+        process.exitCode = 1;
+      }
+    });
+
+  const additionCommands: Array<[AdditionKind, string]> = [
+    ['skill', 'Enable a skill provided by an installed package'],
+    ['addon', 'Adopt or install an integration and offer its skills'],
+    ['package', 'Scaffold a TypeScript library package in the workspace'],
+  ];
+
+  for (const [kind, description] of additionCommands) {
+    add
+      .command(kind)
+      .description(description)
+      .argument('<name>', `${kind} name`)
+      .option('-d, --directory <path>', 'project directory', '.')
+      .action(async (name: string, options: { directory: string }) => {
+        await runAddCommand({ directory: options.directory, kind, name });
+      });
+  }
 
   const skills = program
     .command('skills')

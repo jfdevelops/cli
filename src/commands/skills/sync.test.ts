@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
@@ -189,6 +189,32 @@ describe('runSkillsSync', () => {
     const repeat = createScriptedPrompter(answer((question) => (question.kind === 'multiselect' ? [] : undefined)));
 
     await expect(runSkillsSync({ directory: projectRoot, prompter: repeat.prompter })).resolves.toBe('unchanged');
+  });
+
+  it('asks which version to use when several are installed', async () => {
+    const fixture = await createFixture({
+      'package.json': { name: 'monorepo', private: true, packageManager: 'pnpm@10.28.1', dependencies: { '@acme/forms': '1.0.0' } },
+      'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+      'packages/ui/package.json': { name: '@acme/ui', version: '0.0.0', exports: './src/index.ts', dependencies: { '@acme/forms': '2.0.0' } },
+      ...createSkillPackage(formsPackage, { name: '@acme/forms', version: '1.0.0', skills: ['build-forms'] }),
+    });
+    const init = createScriptedPrompter(
+      answer((question) => (question.kind === 'multiselect' && question.message === 'Select skills to install' ? question.choices.map((choice) => choice.value) : undefined)),
+    );
+
+    fixtures.push(fixture);
+    await runInit({ directory: fixture.root, version: '0.1.0', prompter: init.prompter, installDependency: async () => undefined });
+    await mkdir(join(fixture.root, 'packages/ui', formsPackage, 'skills/build-forms'), { recursive: true });
+    await upgradeForms(join(fixture.root, 'packages/ui'));
+
+    expect((await getStatus(fixture.root)).table).toMatch(/build-forms\s+ambiguous\s+.*more than one installed version \(1\.0\.0, 2\.0\.0\)/);
+
+    const { prompter, transcript } = createScriptedPrompter(answer((question) => (question.kind === 'select' && question.message.startsWith('build-forms is installed') ? '2.0.0' : undefined)));
+
+    await expect(runSkillsSync({ directory: fixture.root, prompter })).resolves.toBe('complete');
+    expect(transcript).toContain('? build-forms is installed in more than one version. Which should be used?');
+    expect(await readText(fixture.root, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
+    expect((await readProjectConfig(fixture.root))?.skills.find((skill) => skill.name === 'build-forms')?.source.version).toBe('2.0.0');
   });
 
   it('writes nothing when declined', async () => {

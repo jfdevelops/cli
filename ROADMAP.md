@@ -208,11 +208,11 @@ Completion: initialize an existing project, select skills, review the changes, a
 
 Completion: both app and library flows generate a usable project with only selected integrations, correct skills, recorded choices, and passing applicable checks.
 
-### 4. Ongoing additions and discovery
+### 4. Ongoing additions and discovery — complete
 
-- [ ] Implement `add`, `add --list`, and skill/addon/package additions.
+- [x] Implement `add`, `add --list`, and skill/addon/package additions.
 - [x] Implement `skills` status and explicit `skills sync`.
-- [ ] Handle package upgrades, missing sources, name conflicts, target compatibility, and edited skill copies.
+- [x] Handle package upgrades, missing sources, name conflicts, target compatibility, and edited skill copies.
 
 Completion: extend an initialized project and reconcile its enabled skills without overwriting local edits or enabling unselected integrations.
 
@@ -236,6 +236,7 @@ Completion: a library tarball exposes its declared skills, and the CLI discovers
 
 - Initial app/library templates and exact follow-up choices.
 - Which formatters ship first, and whether gaps inside import groups are allowed.
+- What each addon scaffolds beyond installing its package, recording it, and offering its skills.
 - Final configuration structure, schema hosting, and migration strategy.
 - Target scoping of native agent discovery when a monorepo mixes integrations.
 - Catalog mappings for libraries without metadata and ambiguous skill-name selection.
