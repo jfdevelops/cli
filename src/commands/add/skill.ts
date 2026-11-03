@@ -10,7 +10,7 @@ function describeSource(skill: CatalogSkill) {
 }
 
 // Picks the source for a skill name, asking when several packages or versions provide it.
-async function chooseSource(candidates: CatalogSkill[], prompter: Prompter) {
+export async function chooseSource(candidates: CatalogSkill[], prompter: Prompter) {
   const [only] = candidates;
 
   if (only && candidates.length === 1) {
