@@ -12,6 +12,7 @@ type InitConfigOptions = {
   packageManager: PackageManagerName;
   targets: ConfirmedTarget[];
   addons: ProjectConfig['addons'];
+  formatter?: string;
   selectedSkills: CatalogSkill[];
   missingSourceSkills: ProjectConfig['skills'];
   managedFiles: ManagedFile[];
@@ -48,7 +49,7 @@ export function createInitConfig(options: InitConfigOptions): z.input<typeof pro
     schemaVersion: 1,
     generator: { package: '@jfdevelops/cli', version: options.version },
     project: { name: options.name, packageManager: options.packageManager },
-    ...(existing?.formatter ? { formatter: existing.formatter } : {}),
+    ...(options.formatter ?? existing?.formatter ? { formatter: options.formatter ?? existing?.formatter } : {}),
     targets,
     addons: options.addons,
     skills: [...selectedSkills, ...retainedSkills].sort((left, right) => compareStrings(left.name, right.name)),

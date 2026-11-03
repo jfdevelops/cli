@@ -1,6 +1,7 @@
 import type { DesiredFile } from '../../plan/create.js';
 
 export type ProjectKind = 'app' | 'library';
+export type FormatterName = 'prettier' | 'biome';
 
 export type ProjectTemplate = {
   name: string;
@@ -39,14 +40,63 @@ function createCommonFiles(projectName: string, template: ProjectTemplate): Desi
   ];
 }
 
-function createAppFiles(projectName: string, template: ProjectTemplate, cliVersion: string): DesiredFile[] {
+function createFormattingFiles(formatter: FormatterName): DesiredFile[] {
+  const eslintConfig = `import stylistic from '@stylistic/eslint-plugin';
+import typescriptEslint from 'typescript-eslint';
+
+export default [
+  {
+    files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
+    languageOptions: { parser: typescriptEslint.parser },
+    plugins: { '@stylistic': stylistic },
+    rules: {
+      curly: ['error', 'all'],
+      '@stylistic/padding-line-between-statements': [
+        'error',
+        { blankLine: 'any', prev: 'import', next: 'import' },
+        { blankLine: 'always', prev: 'import', next: '*' },
+        { blankLine: 'always', prev: '*', next: 'return' },
+        { blankLine: 'always', prev: 'block-like', next: '*' },
+        { blankLine: 'always', prev: '*', next: 'block-like' },
+      ],
+    },
+  },
+];
+`;
+  const formatterFile =
+    formatter === 'prettier'
+      ? createJsonFile('.prettierrc.json', { singleQuote: true, printWidth: 140 })
+      : createJsonFile('biome.json', { formatter: { enabled: true, lineWidth: 140 }, javascript: { formatter: { quoteStyle: 'single' } } });
+
+  return [{ path: 'eslint.config.js', owner: projectOwner, content: eslintConfig }, formatterFile];
+}
+
+function getFormattingManifest(formatter: FormatterName) {
+  const formatterCommand = formatter === 'prettier' ? 'prettier' : 'biome format';
+
+  return {
+    scripts: {
+      format: `${formatterCommand} --write . && eslint --fix .`,
+      'format:check': `${formatterCommand} ${formatter === 'prettier' ? '--check ' : ''}. && eslint .`,
+    },
+    devDependencies: {
+      '@stylistic/eslint-plugin': '^5.10.0',
+      eslint: '^10.14.0',
+      'typescript-eslint': '^8.72.1',
+      ...(formatter === 'prettier' ? { prettier: '^3.9.10' } : { '@biomejs/biome': '^2.6.4' }),
+    },
+  };
+}
+
+function createAppFiles(projectName: string, template: ProjectTemplate, cliVersion: string, formatter: FormatterName): DesiredFile[] {
+  const formatting = getFormattingManifest(formatter);
   const manifest = {
     name: projectName,
     private: true,
     version: '0.0.0',
     type: 'module',
-    scripts: { build: 'tsc', start: 'node dist/index.js' },
-    devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': '^22.20.5', typescript: '^7.0.2' },
+    scripts: { build: 'tsc', start: 'node dist/index.js', ...formatting.scripts },
+    devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': '^22.20.5', typescript: '^7.0.2', ...formatting.devDependencies },
   };
   const compiler = {
     compilerOptions: {
@@ -65,21 +115,23 @@ function createAppFiles(projectName: string, template: ProjectTemplate, cliVersi
 
   return [
     ...createCommonFiles(projectName, template),
+    ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
     createJsonFile('tsconfig.json', compiler),
     { path: 'src/index.ts', owner: projectOwner, content: "console.log('Hello from your jfdevelops app.');\n" },
   ];
 }
 
-function createLibraryFiles(projectName: string, template: ProjectTemplate, cliVersion: string): DesiredFile[] {
+function createLibraryFiles(projectName: string, template: ProjectTemplate, cliVersion: string, formatter: FormatterName): DesiredFile[] {
+  const formatting = getFormattingManifest(formatter);
   const manifest = {
     name: projectName,
     version: '0.0.0',
     type: 'module',
     files: ['dist'],
     exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
-    scripts: { build: 'tsc', prepack: 'tsc' },
-    devDependencies: { '@jfdevelops/cli': cliVersion, typescript: '^7.0.2' },
+    scripts: { build: 'tsc', prepack: 'tsc', ...formatting.scripts },
+    devDependencies: { '@jfdevelops/cli': cliVersion, typescript: '^7.0.2', ...formatting.devDependencies },
   };
   const compiler = {
     compilerOptions: {
@@ -100,18 +152,21 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
 
   return [
     ...createCommonFiles(projectName, template),
+    ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
     createJsonFile('tsconfig.json', compiler),
     { path: 'src/index.ts', owner: projectOwner, content: 'export function greet(name: string) {\n\n  return `Hello, ${name}.`;\n}\n' },
   ];
 }
 
-export function createTemplateFiles(projectName: string, templateName: string, cliVersion = '0.1.0') {
+export function createTemplateFiles(projectName: string, templateName: string, cliVersion = '0.1.0', formatter: FormatterName = 'prettier') {
   const template = projectTemplates.find((candidate) => candidate.name === templateName);
 
   if (!template) {
     throw new Error(`Unknown project template: ${templateName}`);
   }
 
-  return template.kind === 'app' ? createAppFiles(projectName, template, cliVersion) : createLibraryFiles(projectName, template, cliVersion);
+  return template.kind === 'app'
+    ? createAppFiles(projectName, template, cliVersion, formatter)
+    : createLibraryFiles(projectName, template, cliVersion, formatter);
 }

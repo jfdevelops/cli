@@ -81,9 +81,17 @@ async function chooseProject(options: CreateOptions) {
     choices: packageManagers.map((name) => ({ value: name, label: name })),
     initialValue: 'pnpm',
   });
+  const formatter = await prompter.select({
+    message: 'Which formatter should be used?',
+    choices: [
+      { value: 'prettier', label: 'Prettier', hint: 'widely supported and editor-friendly' },
+      { value: 'biome', label: 'Biome', hint: 'fast formatter distributed as one binary' },
+    ],
+    initialValue: 'prettier',
+  });
   const shouldInitializeGit = await prompter.confirm({ message: 'Initialize Git and create the foundation commit?', initialValue: true });
 
-  return { projectName, directory, kind, templateName, packageManager, shouldInitializeGit };
+  return { projectName, directory, kind, templateName, packageManager, formatter, shouldInitializeGit };
 }
 
 async function createProject(options: CreateOptions): Promise<CreateStatus> {
@@ -100,7 +108,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
 
   const catalog = await buildSkillCatalog(selection.directory, [], [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
   const selectedSkills = catalog.skills;
-  const templateFiles = createTemplateFiles(selection.projectName, selection.templateName, version);
+  const templateFiles = createTemplateFiles(selection.projectName, selection.templateName, version, selection.formatter);
   const skillFiles = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill)))).flat();
   const owners = [
     { type: 'project' as const },
@@ -119,6 +127,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     packageManager: selection.packageManager,
     targets: [{ path: '.', kind: selection.kind, template: selection.templateName }],
     addons: [],
+    formatter: selection.formatter,
     selectedSkills,
     missingSourceSkills: [],
   };
@@ -126,7 +135,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const plannedChanges = describePlan(plan, true);
 
   plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version)}`);
-  plannedChanges.push(`Verify project: ${selection.packageManager} run build`);
+  plannedChanges.push(`Verify project: ${selection.packageManager} run format:check, then ${selection.packageManager} run build`);
 
   if (selection.shouldInitializeGit) {
     plannedChanges.push('Initialize Git on main and create chore(init): initialize project');

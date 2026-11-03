@@ -199,11 +199,11 @@ Completion: representative new and existing project fixtures produce correct dis
 
 Completion: initialize an existing project, select skills, review the changes, and install them without disturbing its files or Git history. This is the first usable product milestone.
 
-### 3. New-project `create`
+### 3. New-project `create` — complete
 
 - [x] Define initial app and library templates and their follow-up questions.
 - [x] Reuse the setup engine for chosen addons and skills.
-- [ ] Establish formatter-independent style enforcement.
+- [x] Establish formatter-independent style enforcement.
 - [x] Generate and verify the new project's foundation and initial Git commit.
 
 Completion: both app and library flows generate a usable project with only selected integrations, correct skills, recorded choices, and passing applicable checks.

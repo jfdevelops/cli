@@ -93,6 +93,7 @@ describe('runCreate', () => {
     });
     expect(await readProjectConfig(destination)).toMatchObject({
       project: { name: 'site', packageManager: 'pnpm' },
+      formatter: 'prettier',
       targets: [{ path: '.', kind: 'app', template: 'node-app' }],
       skills: [
         { name: 'jf-coding-conventions', required: true },

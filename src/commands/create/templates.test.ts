@@ -22,7 +22,15 @@ describe('projectTemplates', () => {
   it('generates a private Node.js app', () => {
     const files = createTemplateFiles('worker', 'node-app');
 
-    expect(files.map((file) => file.path)).toEqual(['.gitignore', 'README.md', 'package.json', 'tsconfig.json', 'src/index.ts']);
+    expect(files.map((file) => file.path)).toEqual([
+      '.gitignore',
+      'README.md',
+      'eslint.config.js',
+      '.prettierrc.json',
+      'package.json',
+      'tsconfig.json',
+      'src/index.ts',
+    ]);
     expect(readJson(files, 'package.json')).toMatchObject({ name: 'worker', private: true, scripts: { build: 'tsc', start: 'node dist/index.js' } });
   });
 
@@ -35,5 +43,17 @@ describe('projectTemplates', () => {
 
   it('rejects unknown templates', () => {
     expect(() => createTemplateFiles('app', 'missing')).toThrow('Unknown project template: missing');
+  });
+
+  it('generates Biome formatting with the shared ESLint spacing policy', () => {
+    const files = createTemplateFiles('worker', 'node-app', '0.1.0', 'biome');
+    const manifest = readJson(files, 'package.json');
+
+    expect(files.map((file) => file.path)).toContain('biome.json');
+    expect(files.map((file) => file.path)).toContain('eslint.config.js');
+    expect(manifest).toMatchObject({
+      scripts: { format: 'biome format --write . && eslint --fix .', 'format:check': 'biome format . && eslint .' },
+      devDependencies: { '@biomejs/biome': '^2.6.4', '@stylistic/eslint-plugin': '^5.10.0' },
+    });
   });
 });

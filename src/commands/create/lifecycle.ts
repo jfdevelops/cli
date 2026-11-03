@@ -23,6 +23,7 @@ function runCommand(command: string, arguments_: string[], directory: string) {
 export const verifyCreatedProject: ProjectVerifier = async ({ directory, packageManager }) => {
   const executable = process.platform === 'win32' ? `${packageManager}.cmd` : packageManager;
 
+  await runCommand(executable, ['run', 'format:check'], directory);
   await runCommand(executable, ['run', 'build'], directory);
 };
 

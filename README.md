@@ -37,4 +37,4 @@ pnpm skills:sync
 
 ## Next implementation step
 
-Milestone 2 is complete. Milestone 3 now includes reviewed `create` flows for a minimal Node.js TypeScript app and a publishable TypeScript library, with required skills, configuration, dependency installation, build verification, and optional Git initialization on `main` with the foundation commit. Formatter-independent enforcement is the remaining Milestone 3 work.
+Milestones 2 and 3 are complete. `create` provides reviewed flows for a minimal Node.js TypeScript app and a publishable TypeScript library, with required skills, configuration, dependency installation, formatter choice, shared ESLint Stylistic spacing enforcement, build and formatting verification, and optional Git initialization on `main` with the foundation commit. The next milestone adds ongoing `add` and `skills` operations.
