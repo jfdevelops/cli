@@ -59,7 +59,7 @@ function getSkillStatus(skill: EnabledSkill, candidates: CatalogSkill[], plan: C
   if (!source) {
     const versions = candidates.map((candidate) => candidate.source.version).join(', ');
 
-    return { ...base, installedVersion: undefined, state: 'ambiguous', details: [`more than one installed version (${versions}); run jfdevelops init to choose`] };
+    return { ...base, installedVersion: undefined, state: 'ambiguous', details: [`more than one installed version (${versions}); run jfdevelops skills sync to choose`] };
   }
 
   const { hasEdits, hasChanges, details } = describeChanges(plan, skill.name);

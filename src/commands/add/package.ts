@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import picomatch from 'picomatch';
 import { parseDocument, YAMLSeq } from 'yaml';
@@ -18,8 +18,9 @@ function normalizePattern(pattern: string) {
   return pattern.trim().replace(/^\.\//, '').replace(/\/+$/, '');
 }
 
+// Uses the first `parent/*` pattern whose parent is a literal path, so patterns such as `{apps,packages}/*` are skipped.
 function getDefaultDirectory(workspace: Workspace, baseName: string) {
-  const parent = workspace.patterns.map((pattern) => normalizePattern(pattern).match(/^([^!*]+)\/\*$/)?.[1]).find((match) => match !== undefined);
+  const parent = workspace.patterns.map((pattern) => normalizePattern(pattern).match(/^([^!*?{}[\]()]+)\/\*$/)?.[1]).find((match) => match !== undefined);
 
   return `${parent ?? 'packages'}/${baseName}`;
 }
@@ -82,9 +83,14 @@ function createNewFileEdit(path: string, content: string): FileEdit {
   };
 }
 
+// A file at the path, or a directory with entries, leaves no room for the package.
 async function isOccupied(path: string) {
+  if (!existsSync(path)) {
 
-  return existsSync(path) && (await readdir(path)).length > 0;
+    return false;
+  }
+
+  return !(await stat(path)).isDirectory() || (await readdir(path)).length > 0;
 }
 
 /**
@@ -114,7 +120,7 @@ export async function addPackage(additions: ProjectAdditions, name: string, prom
   }
 
   if (config.targets.some((target) => target.path === directory) || (await isOccupied(join(project.root, directory)))) {
-    throw new Error(`${directory} already exists and is not empty.`);
+    throw new Error(`${directory} is already in use.`);
   }
 
   const isRegistered = isWorkspaceMember(workspace.patterns, directory);
