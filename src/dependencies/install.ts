@@ -1,5 +1,5 @@
-import { spawn } from 'node:child_process';
 import type { PackageManagerName } from '../detect/package-manager.js';
+import { runCommand } from '../process/run.js';
 
 export type DependencyInstaller = (options: { directory: string; packageManager: PackageManagerName; packageName: string; version: string }) => Promise<void>;
 
@@ -41,21 +41,8 @@ function getArguments(packageManager: PackageManagerName, packageName: string, v
   }
 }
 
-function runPackageManager(directory: string, packageManager: PackageManagerName, arguments_: string[]) {
-
-  return new Promise<void>((resolve, reject) => {
-    const executable = process.platform === 'win32' ? `${packageManager}.cmd` : packageManager;
-    const child = spawn(executable, arguments_, { cwd: directory, stdio: 'inherit' });
-
-    child.once('error', reject);
-    child.once('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`${packageManager} exited with code ${code ?? 'unknown'}`));
-      }
-    });
-  });
+async function runPackageManager(directory: string, packageManager: PackageManagerName, arguments_: string[]) {
+  await runCommand(packageManager, arguments_, { cwd: directory });
 }
 
 export const installDevelopmentDependency: DependencyInstaller = async ({ directory, packageManager, packageName, version }) => {
