@@ -2,7 +2,7 @@
 
 Follow the required conventions linked from AGENTS.md, including the master `jf-git` skill before any Git decision. Read this repository's conventions before its branch, commit, or PR references. Shared convention changes belong in `jfdevelops/skills`; regenerate snapshots with `pnpm skills:sync` and review the resulting diff. Keep agent-facing instructions independent of a particular agent's tool API.
 
-Run `pnpm check` to typecheck, run the Vitest suite, verify skill copies and recorded provenance, and install and run the packed executable. Source lives in `src/` with tests beside it as `*.test.ts`; `pnpm build` compiles it to `dist/`. Publishing, commits, and pushes require user authorization.
+Run `pnpm check` to typecheck, run the Vitest suite, verify skill copies and recorded provenance, and install the packed executable and check its behavior without a terminal. `pnpm smoke:create` (also run in CI) creates, installs, formats, lints, and builds real projects for each template, formatter, and package manager; it needs network access. Source lives in `src/` with tests beside it as `*.test.ts`; `pnpm build` compiles it to `dist/`. Publishing, commits, and pushes require user authorization.
 
 Bootstrap scripts may regenerate owned files in these empty/new repositories. The future `init` command must instead inspect existing instructions, preview edits, preserve unrelated content, and detect managed-file changes before updating them.
 

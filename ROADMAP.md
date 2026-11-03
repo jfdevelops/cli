@@ -226,10 +226,10 @@ Completion: a library tarball exposes its declared skills, and the CLI discovers
 
 ### 6. Release readiness
 
-- [ ] Test command behavior, real packed executables, and supported operating systems/Node versions.
-- [ ] Verify interactive cancellation and non-interactive behavior where supported.
-- [ ] Smoke-test agent discovery adapters and formatter combinations.
-- [ ] Document onboarding, conflicts, configuration evolution, and skill updates.
+- [x] Test command behavior, real packed executables, and supported operating systems/Node versions.
+- [x] Verify interactive cancellation and non-interactive behavior where supported.
+- [x] Smoke-test agent discovery adapters and formatter combinations.
+- [x] Document onboarding, conflicts, configuration evolution, and skill updates.
 - [ ] Publish the shared skills and CLI packages through separately authorized releases.
 
 ## Decisions still open
