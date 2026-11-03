@@ -66,7 +66,10 @@ export default [
   const formatterFile =
     formatter === 'prettier'
       ? createJsonFile('.prettierrc.json', { singleQuote: true, printWidth: 140 })
-      : createJsonFile('biome.json', { formatter: { enabled: true, lineWidth: 140 }, javascript: { formatter: { quoteStyle: 'single' } } });
+      : createJsonFile('biome.json', {
+          formatter: { enabled: true, indentStyle: 'space', indentWidth: 2, lineWidth: 140 },
+          javascript: { formatter: { quoteStyle: 'single' } },
+        });
 
   return [{ path: 'eslint.config.js', owner: projectOwner, content: eslintConfig }, formatterFile];
 }
@@ -155,7 +158,7 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
     ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
     createJsonFile('tsconfig.json', compiler),
-    { path: 'src/index.ts', owner: projectOwner, content: 'export function greet(name: string) {\n\n  return `Hello, ${name}.`;\n}\n' },
+    { path: 'src/index.ts', owner: projectOwner, content: 'export function greet(name: string) {\n  return `Hello, ${name}.`;\n}\n' },
   ];
 }
 

@@ -8,13 +8,14 @@ import type { PackageManagerName } from '../../detect/package-manager.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
 import { applyChangePlan } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
+import { refreshManagedFiles } from '../../plan/refresh.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { describePlan, resolveConflicts } from '../init/review.js';
-import { initializeProjectGit, verifyCreatedProject, type GitInitializer, type ProjectVerifier } from './lifecycle.js';
+import { hasGitIdentity, initializeProjectGit, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
 
 export type CreateOptions = {
@@ -24,6 +25,7 @@ export type CreateOptions = {
   installDependency?: DependencyInstaller;
   verifyProject?: ProjectVerifier;
   initializeGit?: GitInitializer;
+  checkGitIdentity?: GitIdentityCheck;
 };
 
 export type CreateStatus = 'complete' | 'incomplete' | 'cancelled' | 'failed';
@@ -101,8 +103,14 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     installDependency = installDevelopmentDependency,
     verifyProject = verifyCreatedProject,
     initializeGit = initializeProjectGit,
+    checkGitIdentity = hasGitIdentity,
   } = options;
   const selection = await chooseProject(options);
+
+  if (selection.shouldInitializeGit && !(await checkGitIdentity())) {
+    prompter.warn('Git has no author name and email configured, so the foundation commit will be skipped. Set user.name and user.email, then commit the project yourself.');
+    selection.shouldInitializeGit = false;
+  }
 
   await assertDestinationAvailable(selection.directory);
 
@@ -166,7 +174,10 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     prompter.error(`Could not install project dependencies: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  await writeProjectConfig(selection.directory, createInitConfig({ ...configOptions, managedFiles: result.managedFiles }));
+  // Installing rewrites package.json, so generated files are recorded as they are afterwards.
+  const managedFiles = await refreshManagedFiles(selection.directory, result.managedFiles, (file) => file.owner.type === 'project');
+
+  await writeProjectConfig(selection.directory, createInitConfig({ ...configOptions, managedFiles }));
 
   let verificationError: unknown;
 
