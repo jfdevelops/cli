@@ -218,8 +218,8 @@ Completion: extend an initialized project and reconcile its enabled skills witho
 
 ### 5. Library authoring support
 
-- [ ] Implement `create skills` for single packages and workspaces.
-- [ ] Register existing skills or scaffold new ones with publication validation.
+- [x] Implement `create skills` for single packages and workspaces.
+- [x] Register existing skills or scaffold new ones with publication validation.
 - [ ] Add discovery metadata to participating jfdevelops libraries in separately authorized changes.
 
 Completion: a library tarball exposes its declared skills, and the CLI discovers those exact files from an installed consumer dependency.

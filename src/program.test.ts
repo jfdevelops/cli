@@ -93,6 +93,17 @@ describe('create command', () => {
   });
 });
 
+describe('create skills command', () => {
+  it('routes create skills separately from create and requires a terminal', async () => {
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+    const { output, error } = await runProgram(['create', 'skills', '--package', '@acme/forms'], { createPrompter: () => prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops create skills is interactive; run it in a terminal.');
+    expect(error).toMatchObject({ exitCode: 1 });
+    expect(transcript).toEqual([]);
+  });
+});
+
 describe('init command', () => {
   it('refuses to run without a terminal', async () => {
     const { prompter } = createScriptedPrompter(() => 'cancel');
