@@ -5,15 +5,15 @@ import { detectIntegrations } from '../../detect/integration.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { detectProject, type ProjectDetection } from '../../detect/project.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
-import { applyChangePlan, type ApplyResult } from '../../plan/apply.js';
+import { applyChangePlan } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { buildSkillCatalog, type SkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
+import { describePlan, reportApplyResult, resolveConflicts } from '../review.js';
 import { createInitConfig } from './config.js';
 import { confirmIntegrations, filterAddonSkills } from './integrations.js';
-import { describePlan, resolveConflicts } from './review.js';
 import { findMissingSourceSkills, selectSkills } from './skills.js';
 import { confirmTargets } from './targets.js';
 
@@ -54,20 +54,6 @@ function reportCatalog(catalog: SkillCatalog, prompter: Prompter) {
 
   if (catalog.skills.length === 0) {
     prompter.info('No installed packages declare jfdevelops skills.');
-  }
-}
-
-function reportResult(result: ApplyResult, prompter: Prompter) {
-  if (result.applied.length > 0) {
-    prompter.success(`Applied ${result.applied.length} change${result.applied.length === 1 ? '' : 's'}.`);
-  }
-
-  if (result.skipped.length > 0) {
-    prompter.info(`Kept unchanged: ${result.skipped.map((file) => file.path).join(', ')}`);
-  }
-
-  for (const file of result.failed) {
-    prompter.error(`${file.path}: ${file.message}`);
   }
 }
 
@@ -151,7 +137,7 @@ async function adoptProject({ directory, version, prompter, installDependency = 
   }
 
   await writeProjectConfig(project.root, createInitConfig({ ...configOptions, managedFiles: result.managedFiles }));
-  reportResult(result, prompter);
+  reportApplyResult(result, prompter);
 
   if (!result.isComplete || dependencyError) {
     prompter.outro('Init finished with errors. Run it again to retry the failed files.');

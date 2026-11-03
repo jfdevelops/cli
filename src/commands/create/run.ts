@@ -13,7 +13,7 @@ import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
-import { describePlan, resolveConflicts } from '../init/review.js';
+import { describePlan, resolveConflicts } from '../review.js';
 import { initializeProjectGit, verifyCreatedProject, type GitInitializer, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
 

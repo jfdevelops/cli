@@ -211,7 +211,7 @@ Completion: both app and library flows generate a usable project with only selec
 ### 4. Ongoing additions and discovery
 
 - [ ] Implement `add`, `add --list`, and skill/addon/package additions.
-- [ ] Implement `skills` status and explicit `skills sync`.
+- [x] Implement `skills` status and explicit `skills sync`.
 - [ ] Handle package upgrades, missing sources, name conflicts, target compatibility, and edited skill copies.
 
 Completion: extend an initialized project and reconcile its enabled skills without overwriting local edits or enabling unselected integrations.

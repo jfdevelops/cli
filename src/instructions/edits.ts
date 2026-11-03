@@ -1,3 +1,4 @@
+import { compareStrings } from '../compare.js';
 import type { FileEdit } from '../plan/create.js';
 import { upsertManagedSection } from './section.js';
 
@@ -10,7 +11,9 @@ function createSkillListing(skills: Array<{ name: string; description: string }>
     return '## jfdevelops skills\n\nNo jfdevelops skills are enabled.';
   }
 
-  const items = skills.map((skill) => `- [${skill.name}](.agents/skills/${skill.name}/SKILL.md): ${skill.description}`);
+  const items = [...skills]
+    .sort((left, right) => compareStrings(left.name, right.name))
+    .map((skill) => `- [${skill.name}](.agents/skills/${skill.name}/SKILL.md): ${skill.description}`);
 
   return ['## jfdevelops skills', '', 'Read each skill before the work it describes:', '', ...items].join('\n');
 }

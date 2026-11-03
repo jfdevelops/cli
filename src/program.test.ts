@@ -127,3 +127,45 @@ describe('init command', () => {
     expect(process.exitCode).toBe(1);
   });
 });
+
+describe('skills command', () => {
+  async function createConfiguredProject() {
+    const fixture = await createFixture({
+      'package.json': { name: 'site', private: true },
+      'jfdevelops.json': {
+        schemaVersion: 1,
+        generator: { package: '@jfdevelops/cli', version: '0.1.0' },
+        project: { name: 'site', packageManager: 'npm' },
+      },
+    });
+
+    fixtures.push(fixture);
+
+    return fixture.root;
+  }
+
+  it('reports status without a terminal and fails --check when out of sync', async () => {
+    const projectRoot = await createConfiguredProject();
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+    const dependencies = { createPrompter: () => prompter, isInteractive: () => false };
+
+    await runProgram(['skills', projectRoot], dependencies);
+
+    expect(transcript[0]).toBe('intro: jfdevelops skills');
+    expect(transcript.at(-1)).toBe('outro: Run jfdevelops skills sync to review and apply updates.');
+    expect(process.exitCode).toBeUndefined();
+
+    await runProgram(['skills', projectRoot, '--check'], dependencies);
+
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('routes sync and refuses to run it without a terminal', async () => {
+    const projectRoot = await createConfiguredProject();
+    const { prompter } = createScriptedPrompter(() => 'cancel');
+    const { output, error } = await runProgram(['skills', 'sync', projectRoot], { createPrompter: () => prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops skills sync is interactive; run it in a terminal.');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+});
