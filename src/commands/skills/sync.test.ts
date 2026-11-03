@@ -207,7 +207,7 @@ describe('runSkillsSync', () => {
     await mkdir(join(fixture.root, 'packages/ui', formsPackage, 'skills/build-forms'), { recursive: true });
     await upgradeForms(join(fixture.root, 'packages/ui'));
 
-    expect((await getStatus(fixture.root)).table).toMatch(/build-forms\s+ambiguous\s+.*more than one installed version \(1\.0\.0, 2\.0\.0\)/);
+    expect((await getStatus(fixture.root)).table).toMatch(/build-forms\s+ambiguous\s+.*more than one installed version \(1\.0\.0, 2\.0\.0\); run jfdevelops skills sync to choose/);
 
     const { prompter, transcript } = createScriptedPrompter(answer((question) => (question.kind === 'select' && question.message.startsWith('build-forms is installed') ? '2.0.0' : undefined)));
 

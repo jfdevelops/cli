@@ -32,7 +32,7 @@ export async function runSkillsStatus({ directory, prompter }: { directory: stri
     }
 
     if (availableNames.length > 0) {
-      prompter.info(`Also available from installed packages: ${availableNames.join(', ')}. Run jfdevelops init to enable them.`);
+      prompter.info(`Also available from installed packages: ${availableNames.join(', ')}. Run jfdevelops add skill <name> to enable one.`);
     }
 
     const isInSync = statuses.every((status) => status.state === 'current') && !plan.hasChanges;

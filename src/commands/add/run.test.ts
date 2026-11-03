@@ -119,6 +119,11 @@ describe('runAddList', () => {
 describe('add skill', () => {
   it('enables one skill and lists it in AGENTS.md', async () => {
     const projectRoot = await createInitializedProject(createAppFiles(), ['build-forms']);
+    const before = createScriptedPrompter(answer());
+
+    await runSkillsStatus({ directory: projectRoot, prompter: before.prompter });
+    expect(before.transcript).toContain('info: Also available from installed packages: validate-forms. Run jfdevelops add skill <name> to enable one.');
+
     const { status, transcript } = await add(projectRoot, { kind: 'skill', name: 'validate-forms' });
 
     expect(status).toBe('complete');
@@ -312,8 +317,38 @@ describe('add package', () => {
     const appRoot = await createInitializedProject(createAppFiles(), []);
     const noWorkspace = await add(appRoot, { kind: 'package', name: 'utils' });
 
-    expect(occupied.transcript).toContain('error: packages/ui already exists and is not empty.');
+    expect(occupied.transcript).toContain('error: packages/ui is already in use.');
     expect(noWorkspace.transcript).toContain('error: add package needs a workspace defined in pnpm-workspace.yaml or package.json workspaces.');
+  });
+
+  it('refuses a directory path taken by a file', async () => {
+    const projectRoot = await createInitializedProject({ ...createWorkspaceFiles(), 'packages/notes': 'a file' }, []);
+    const { status, transcript } = await add(projectRoot, { kind: 'package', name: 'notes' });
+
+    expect(status).toBe('failed');
+    expect(transcript).toContain('error: packages/notes is already in use.');
+  });
+
+  it('skips brace patterns when choosing the default directory', async () => {
+    const projectRoot = await createInitializedProject(
+      { ...createWorkspaceFiles(), 'pnpm-workspace.yaml': 'packages:\n  - "{apps,tools}/*"\n  - packages/*\n' },
+      [],
+    );
+    const defaults: Array<string | undefined> = [];
+
+    await add(
+      projectRoot,
+      { kind: 'package', name: 'utils' },
+      answer((question) => {
+        if (question.kind === 'text') {
+          defaults.push(question.initialValue);
+        }
+
+        return question.kind === 'confirm' ? false : undefined;
+      }),
+    );
+
+    expect(defaults).toEqual(['packages/utils']);
   });
 
   it('does not record a package whose scaffold failed, so it can be retried', async () => {
