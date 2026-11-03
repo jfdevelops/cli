@@ -89,7 +89,8 @@ async function adoptProject({ directory, version, prompter, installDependency = 
   reportCatalog(catalog, prompter);
 
   const enabledSkills = project.config?.skills ?? [];
-  const missingSourceSkills = findMissingSourceSkills(catalog, enabledSkills);
+  // Checked against every installed package, so skills of a deselected addon are removed rather than treated as missing.
+  const missingSourceSkills = findMissingSourceSkills(discoveredCatalog, enabledSkills);
 
   for (const skill of missingSourceSkills) {
     prompter.warn(`${skill.name} is enabled but ${skill.source.package} is not installed; its files are left as they are.`);
@@ -116,6 +117,7 @@ async function adoptProject({ directory, version, prompter, installDependency = 
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
   const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(project.config);
   const needsCliDependency = !hasCliDependency(project);
+  const isWorkspaceRoot = packageManager === 'pnpm' && project.workspace?.source === 'pnpm-workspace.yaml';
 
   if (!plan.hasChanges && !isConfigChanged && !needsCliDependency) {
     prompter.outro('Already up to date. No changes needed.');
@@ -126,7 +128,7 @@ async function adoptProject({ directory, version, prompter, installDependency = 
   const plannedChanges = describePlan(plan, isConfigChanged);
 
   if (needsCliDependency) {
-    plannedChanges.push(`Install development dependency: ${describeDevelopmentDependency(packageManager, '@jfdevelops/cli', version)}`);
+    plannedChanges.push(`Install development dependency: ${describeDevelopmentDependency(packageManager, '@jfdevelops/cli', version, isWorkspaceRoot)}`);
   }
 
   prompter.note(plannedChanges.join('\n'), 'Planned changes');
@@ -143,7 +145,7 @@ async function adoptProject({ directory, version, prompter, installDependency = 
 
   if (needsCliDependency) {
     try {
-      await installDependency({ directory: project.root, packageManager, packageName: '@jfdevelops/cli', version });
+      await installDependency({ directory: project.root, packageManager, packageName: '@jfdevelops/cli', version, isWorkspaceRoot });
     } catch (error) {
       dependencyError = error;
       prompter.error(`Could not install @jfdevelops/cli: ${error instanceof Error ? error.message : String(error)}`);
