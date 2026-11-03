@@ -212,12 +212,38 @@ describe('runCreateSkills', () => {
     expect(app.transcript).toContain(`error: No package named missing in ${root}.`);
   });
 
+  it('resolves --path from the chosen package when run at the workspace root', async () => {
+    const root = await createProject({
+      'package.json': { name: 'monorepo', private: true },
+      'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+      ...Object.fromEntries(Object.entries(createLibraryFiles()).map(([path, content]) => [`packages/forms/${path}`, content])),
+    });
+    const relativeToPackage = await author(root, answer(), { packageName: '@acme/forms', skillPath: 'skills/build-forms' });
+    const relativeToRoot = await author(root, answer((question) => (question.kind === 'text' ? 'Sort tables' : undefined)), {
+      packageName: '@acme/forms',
+      skillPath: 'packages/forms/docs/sort-tables',
+    });
+
+    expect(relativeToPackage.status).toBe('complete');
+    expect(relativeToRoot.status).toBe('complete');
+    expect((await readManifest(join(root, 'packages/forms'))).jfdevelops?.skills.map((entry) => entry.path)).toEqual(['./skills/build-forms', './docs/sort-tables']);
+  });
+
   it('reports skills that the package would not publish', async () => {
     const root = await createProject(createLibraryFiles());
     const { status, transcript } = await author(root, answer(), { listPackedFiles: async () => ['package.json', 'dist/index.js', 'skills/build-forms/SKILL.md'] });
 
     expect(status).toBe('incomplete');
     expect(transcript).toContain('error: Not included in the published package: skills/build-forms/references/fields.md. Add their directory to the files field in package.json.');
+  });
+
+  it('ignores files that npm never publishes', async () => {
+    const root = await createProject(createLibraryFiles({ 'skills/build-forms/.DS_Store': 'finder', 'skills/build-forms/references/._fields.md': 'resource fork' }));
+    const packed = ['package.json', 'dist/index.js', 'skills/build-forms/SKILL.md', 'skills/build-forms/references/fields.md'];
+    const { status, transcript } = await author(root, answer(), { listPackedFiles: async () => packed });
+
+    expect(status).toBe('complete');
+    expect(transcript.some((line) => line.includes('Not included in the published package'))).toBe(false);
   });
 
   it('writes nothing when declined', async () => {

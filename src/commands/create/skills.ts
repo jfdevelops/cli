@@ -181,6 +181,13 @@ async function authorInteractively(inspection: LibraryPackageInspection, package
   return { register: [...register, { name, path: `./${path}` }], scaffold: await scaffoldSkill(packageRoot, path, name, prompter) };
 }
 
+// A relative --path may be written from the current directory or from the chosen package's root.
+function resolveSkillPath(directory: string, packageRoot: string, skillPath: string) {
+  const fromDirectory = resolve(directory, skillPath);
+
+  return isInsideDirectory(packageRoot, fromDirectory) ? fromDirectory : resolve(packageRoot, skillPath);
+}
+
 function toProjectPath(packagePath: string, path: string) {
 
   return packagePath === '.' ? path : `${packagePath}/${path}`;
@@ -211,7 +218,7 @@ async function authorSkills(options: CreateSkillsOptions): Promise<CreateSkillsS
   }
 
   const authoring = options.skillPath
-    ? await authorAtPath(inspection, packageRoot, resolve(directory, options.skillPath), prompter)
+    ? await authorAtPath(inspection, packageRoot, resolveSkillPath(directory, packageRoot, options.skillPath), prompter)
     : await authorInteractively(inspection, packageRoot, prompter);
   const edits: FileEdit[] = [
     ...(authoring.scaffold ? [{ path: toProjectPath(target.path, `${authoring.scaffold.path}/SKILL.md`), transform: createOnly(authoring.scaffold.content) }] : []),
