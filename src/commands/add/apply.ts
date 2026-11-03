@@ -20,6 +20,8 @@ export type AdditionChanges = {
   // Targeted edits to project-owned files, such as new package files or workspace registration.
   edits?: FileEdit[];
   extraSteps?: string[];
+  // How to retry when an edit fails; new targets are not recorded then, so the same command can run again.
+  editRetryHint?: string;
 };
 
 function toEnabledSkill(skill: CatalogSkill) {
@@ -45,11 +47,11 @@ export async function applyAdditions(additions: ProjectAdditions, changes: Addit
     owners: addedSkills.map((skill) => ({ type: 'skill' as const, name: skill.name })),
   });
 
-  function createConfig(managedFiles: ManagedFile[]) {
+  function createConfig(managedFiles: ManagedFile[], hasFailedEdits = false) {
 
     return {
       ...config,
-      targets: changes.targets ?? config.targets,
+      targets: hasFailedEdits ? config.targets : (changes.targets ?? config.targets),
       addons: changes.addons ?? config.addons,
       skills: [...config.skills, ...addedSkills.map((skill) => toEnabledSkill(skill))].sort((left, right) => compareStrings(left.name, right.name)),
       managedFiles,
@@ -66,10 +68,22 @@ export async function applyAdditions(additions: ProjectAdditions, changes: Addit
 
   const result = await confirmAndApply({ projectRoot: project.root, plan, prompter, isConfigChanged, extraSteps: changes.extraSteps ?? [] });
 
-  await writeProjectConfig(project.root, createConfig(result.managedFiles));
+  const failedPaths = new Set(result.failed.map((file) => file.path));
+  const editPaths = new Set((changes.edits ?? []).map((edit) => edit.path));
+  const hasFailedEdits = [...failedPaths].some((path) => editPaths.has(path));
+  const skillPaths = new Set(plan.changes.filter((change) => change.owner.type === 'skill').map((change) => change.path));
+  const hasFailedSkillFiles = [...failedPaths].some((path) => skillPaths.has(path));
+
+  await writeProjectConfig(project.root, createConfig(result.managedFiles, hasFailedEdits));
 
   if (!result.isComplete) {
-    prompter.outro('Finished with errors. Run the command again to retry the failed files.');
+    // Added skills stay enabled, so skills sync restores their missing copies; a rerun of add would report them as enabled.
+    const hints = [
+      ...(hasFailedSkillFiles ? ['Run jfdevelops skills sync to install the remaining skill files.'] : []),
+      ...(hasFailedEdits ? [changes.editRetryHint ?? 'Fix the reported files and run the command again.'] : []),
+    ];
+
+    prompter.outro(['Finished with errors.', ...hints].join(' '));
 
     return 'incomplete';
   }
