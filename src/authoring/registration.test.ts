@@ -37,6 +37,15 @@ describe('createRegistrationEdit', () => {
 
     expect(JSON.parse(edit.transform(current)).jfdevelops.skills.map((entry: { name: string }) => entry.name)).toEqual(['build-forms', 'validate-forms']);
   });
+
+  it('registers a name only once within one batch', () => {
+    const edit = createRegistrationEdit('package.json', [
+      { name: 'build-forms', path: './skills/build-forms' },
+      { name: 'build-forms', path: './docs/build-forms' },
+    ]);
+
+    expect(JSON.parse(edit.transform(JSON.stringify({ name: 'forms' }))).jfdevelops.skills).toEqual([{ name: 'build-forms', path: './skills/build-forms' }]);
+  });
 });
 
 describe('createSkillDocument', () => {

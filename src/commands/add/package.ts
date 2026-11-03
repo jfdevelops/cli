@@ -123,7 +123,8 @@ export async function addPackage(additions: ProjectAdditions, name: string, prom
     ...(isRegistered ? [] : [createRegistrationEdit(workspace, directory)]),
   ];
   const targets = [...config.targets, { path: directory, kind: 'library' as const, template: 'typescript-library', options: {} }];
-  const status = await applyAdditions(additions, { edits, targets }, prompter);
+  const editRetryHint = `Remove what was created in ${directory}, then run jfdevelops add package ${name} again.`;
+  const status = await applyAdditions(additions, { edits, targets, editRetryHint }, prompter);
 
   if (status === 'complete') {
     prompter.outro(`Created ${name} in ${directory}. Run ${config.project.packageManager} install to link it into the workspace.`);

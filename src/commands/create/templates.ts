@@ -50,7 +50,7 @@ const libraryCompiler = {
   include: ['src'],
 };
 
-const libraryEntry = 'export function greet(name: string) {\n\n  return `Hello, ${name}.`;\n}\n';
+const libraryEntry = 'export function greet(name: string) {\n  return `Hello, ${name}.`;\n}\n';
 
 function createJsonFile(path: string, value: unknown): DesiredFile {
 
@@ -97,7 +97,7 @@ export default [
       : [
           createJsonFile('biome.json', {
             files: { includes: ['**', ...unformattedPaths.map((path) => `!${path}`)] },
-            formatter: { enabled: true, lineWidth: 140 },
+            formatter: { enabled: true, indentStyle: 'space', indentWidth: 2, lineWidth: 140 },
             javascript: { formatter: { quoteStyle: 'single' } },
           }),
         ];

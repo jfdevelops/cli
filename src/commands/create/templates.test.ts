@@ -56,5 +56,12 @@ describe('projectTemplates', () => {
       scripts: { format: 'biome format --write . && eslint --fix .', 'format:check': 'biome format . && eslint .' },
       devDependencies: { '@biomejs/biome': '^2.6.4', '@stylistic/eslint-plugin': '^5.10.0' },
     });
+    expect(readJson(files, 'biome.json')).toMatchObject({ formatter: { indentStyle: 'space', indentWidth: 2 } });
+  });
+
+  it('generates a library entry that formatters leave unchanged', () => {
+    const entry = createTemplateFiles('lib', 'typescript-library').find((file) => file.path === 'src/index.ts');
+
+    expect(entry?.content).toBe('export function greet(name: string) {\n  return `Hello, ${name}.`;\n}\n');
   });
 });

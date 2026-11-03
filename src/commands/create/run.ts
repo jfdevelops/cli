@@ -15,7 +15,7 @@ import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { describePlan, resolveConflicts } from '../review.js';
-import { formatCreatedProject, initializeProjectGit, verifyCreatedProject, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
+import { formatCreatedProject, hasGitIdentity, initializeProjectGit, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
 
 export type CreateOptions = {
@@ -26,6 +26,7 @@ export type CreateOptions = {
   formatProject?: ProjectFormatter;
   verifyProject?: ProjectVerifier;
   initializeGit?: GitInitializer;
+  checkGitIdentity?: GitIdentityCheck;
 };
 
 export type CreateStatus = 'complete' | 'incomplete' | 'cancelled' | 'failed';
@@ -104,8 +105,14 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     formatProject = formatCreatedProject,
     verifyProject = verifyCreatedProject,
     initializeGit = initializeProjectGit,
+    checkGitIdentity = hasGitIdentity,
   } = options;
   const selection = await chooseProject(options);
+
+  if (selection.shouldInitializeGit && !(await checkGitIdentity())) {
+    prompter.warn('Git has no author name and email configured, so the foundation commit will be skipped. Set user.name and user.email, then commit the project yourself.');
+    selection.shouldInitializeGit = false;
+  }
 
   await assertDestinationAvailable(selection.directory);
 
@@ -169,7 +176,8 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     prompter.error(`Could not install project dependencies: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  let managedFiles = result.managedFiles;
+  // Installing rewrites package.json, so generated files are recorded as they are afterwards.
+  let managedFiles = await refreshManagedFiles(selection.directory, result.managedFiles, (file) => file.owner.type === 'project');
   let verificationError: unknown;
 
   if (result.isComplete && !dependencyError) {

@@ -173,6 +173,26 @@ describe('runCreateSkills', () => {
     expect((await readManifest(root)).jfdevelops?.skills.map((entry) => entry.name)).toEqual(['build-forms']);
   });
 
+  it('reports names found in several directories instead of registering both', async () => {
+    const root = await createProject(
+      createLibraryFiles({
+        'docs/build-forms/SKILL.md': createSkillDocument('build-forms'),
+        'skills/validate-forms/SKILL.md': createSkillDocument('validate-forms'),
+      }),
+    );
+    const { status, transcript } = await author(root, answer());
+
+    expect(status).toBe('complete');
+    expect(transcript).toContain('warn: build-forms appears in more than one directory (./docs/build-forms, ./skills/build-forms). Register one with --path.');
+    expect((await readManifest(root)).jfdevelops?.skills).toEqual([{ name: 'validate-forms', path: './skills/validate-forms' }]);
+
+    const explicit = await author(root, answer(), { skillPath: 'skills/build-forms' });
+    const duplicate = await author(root, answer(), { skillPath: 'docs/build-forms' });
+
+    expect(explicit.status).toBe('complete');
+    expect(duplicate.transcript).toContain('error: build-forms is already registered at ./skills/build-forms.');
+  });
+
   it('chooses the owning package in a workspace', async () => {
     const root = await createProject({
       'package.json': { name: 'monorepo', private: true },

@@ -127,12 +127,17 @@ async function authorAtPath(inspection: LibraryPackageInspection, packageRoot: s
     throw new Error(`${path}/SKILL.md cannot be registered: ${found.problem}`);
   }
 
+  const name = found?.name ?? basename(relativePath);
+  const registeredElsewhere = inspection.registrations.find((entry) => entry.name === name);
+
+  if (registeredElsewhere) {
+    throw new Error(`${name} is already registered at ${registeredElsewhere.path}.`);
+  }
+
   if (found) {
 
     return { register: [{ name: found.name, path }] };
   }
-
-  const name = basename(relativePath);
 
   if (!skillNameSchema.safeParse(name).success) {
     throw new Error(`The directory name ${name} is not a valid skill name; use lowercase kebab-case.`);
@@ -143,7 +148,18 @@ async function authorAtPath(inspection: LibraryPackageInspection, packageRoot: s
 
 // Offers unregistered skills for registration, then optionally scaffolds a new one.
 async function authorInteractively(inspection: LibraryPackageInspection, packageRoot: string, prompter: Prompter): Promise<Authoring> {
-  const registrable = inspection.unregistered.flatMap((skill) => ('name' in skill ? [skill] : []));
+  const valid = inspection.unregistered.flatMap((skill) => ('name' in skill ? [skill] : []));
+  const registeredNames = new Set(inspection.registrations.map((entry) => entry.name));
+  const repeatedNames = new Set(valid.map((skill) => skill.name).filter((name, index, names) => names.indexOf(name) !== index || registeredNames.has(name)));
+
+  // A name in several directories, or one already registered elsewhere, cannot be registered twice; --path picks one.
+  for (const name of repeatedNames) {
+    const paths = [...inspection.registrations.filter((entry) => entry.name === name), ...valid.filter((skill) => skill.name === name)].map((skill) => skill.path);
+
+    prompter.warn(`${name} appears in more than one directory (${paths.join(', ')}). Register one with --path.`);
+  }
+
+  const registrable = valid.filter((skill) => !repeatedNames.has(skill.name));
   const paths =
     registrable.length === 0
       ? []

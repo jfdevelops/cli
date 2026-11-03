@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
+import { hashContent } from '../../plan/hash.js';
 import { createFixture } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question } from '../../testing/prompter.js';
 import { runCreate, type CreateOptions } from './run.js';
@@ -82,6 +83,7 @@ describe('runCreate', () => {
         initializeGit: async () => {
           lifecycle.push('git');
         },
+        checkGitIdentity: async () => true,
       }),
     ).resolves.toBe('complete');
 
@@ -105,6 +107,38 @@ describe('runCreate', () => {
     expect(transcript.some((line) => line.includes('Install dependencies: pnpm add'))).toBe(true);
     expect(lifecycle).toEqual(['verified', 'git']);
     expect(transcript.at(-1)).toContain('outro: Created site in');
+
+    const manifestRecord = (await readProjectConfig(destination))?.managedFiles.find((file) => file.path === 'package.json');
+
+    expect(manifestRecord?.sha256).toBe(hashContent(await readFile(join(destination, 'package.json'))));
+  });
+
+  it('skips the foundation commit when Git has no author identity', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const lifecycle: string[] = [];
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'site' }));
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async () => {
+          lifecycle.push('git');
+        },
+        checkGitIdentity: async () => false,
+      }),
+    ).resolves.toBe('complete');
+
+    expect(lifecycle).toEqual([]);
+    expect(transcript.some((line) => line.startsWith('warn: Git has no author name and email configured'))).toBe(true);
+    expect(transcript.find((line) => line.startsWith('note [Planned project]'))).not.toContain('Initialize Git');
   });
 
   it('writes nothing when project creation is declined', async () => {
@@ -130,6 +164,7 @@ describe('runCreate', () => {
         formatProject: async () => undefined,
         verifyProject: async () => undefined,
         initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
       }),
     ).resolves.toBe('cancelled');
     expect(existsSync(destination)).toBe(false);
@@ -151,6 +186,7 @@ describe('runCreate', () => {
         formatProject: async () => undefined,
         verifyProject: async () => undefined,
         initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
       }),
     ).resolves.toBe('failed');
     expect(transcript.some((line) => line.startsWith('error: Destination is not empty:'))).toBe(true);

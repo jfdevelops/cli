@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -229,6 +229,59 @@ describe('add addon', () => {
     expect(status).toBe('failed');
     expect(transcript).toContain('error: Unsupported addon: left-pad. Supported: convex, portless, and individual @tanstack/* or @jfdevelops/* libraries.');
   });
+
+  it('asks which version to use when the addon is installed in several versions', async () => {
+    const projectRoot = await createInitializedProject(
+      {
+        'package.json': { name: 'monorepo', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { portless: '1.0.0' } },
+        'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+        'packages/ui/package.json': { name: '@acme/ui', version: '1.0.0', exports: './index.js', devDependencies: { portless: '2.0.0' } },
+        ...createSkillPackage('node_modules/portless', { name: 'portless', version: '1.0.0', skills: ['portless-dev'] }),
+        ...createSkillPackage('packages/ui/node_modules/portless', { name: 'portless', version: '2.0.0', skills: ['portless-dev'] }),
+      },
+      [],
+    );
+    const { status, transcript } = await add(
+      projectRoot,
+      { kind: 'addon', name: 'portless' },
+      answer((question) => (question.kind === 'select' && question.message.startsWith('portless-dev is provided') ? 'portless@2.0.0' : undefined)),
+    );
+
+    expect(status).toBe('complete');
+    expect(transcript).toContain('? portless-dev is provided by more than one package or version. Which should be installed?');
+    expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'portless-dev')?.source.version).toBe('2.0.0');
+  });
+
+  it('says the package stays installed when cancelled after installing it', async () => {
+    const projectRoot = await createInitializedProject(createAppFiles(), []);
+    const { status, transcript } = await add(
+      projectRoot,
+      { kind: 'addon', name: 'convex', installPackage: installConvex },
+      answer((question) => (question.message === 'Apply these changes?' ? false : undefined)),
+    );
+
+    expect(status).toBe('cancelled');
+    expect(transcript.at(-1)).toBe(
+      'cancel: Add cancelled. convex was installed, but the addon was not recorded. Run jfdevelops add addon convex again to finish, or uninstall the package.',
+    );
+    expect(transcript).not.toContain('cancel: Add cancelled. No project files were changed.');
+  });
+
+  it('installs at a pnpm workspace root with --workspace-root', async () => {
+    const projectRoot = await createInitializedProject(createWorkspaceFiles(), []);
+    const installs: unknown[] = [];
+    const { transcript } = await add(projectRoot, {
+      kind: 'addon',
+      name: 'convex',
+      installPackage: async (options) => {
+        installs.push(options);
+        await installConvex(options);
+      },
+    });
+
+    expect(transcript).toContain('? Install convex in the project root with `pnpm add --workspace-root convex`?');
+    expect(installs).toEqual([expect.objectContaining({ isWorkspaceRoot: true })]);
+  });
 });
 
 describe('add package', () => {
@@ -261,6 +314,52 @@ describe('add package', () => {
 
     expect(occupied.transcript).toContain('error: packages/ui already exists and is not empty.');
     expect(noWorkspace.transcript).toContain('error: add package needs a workspace defined in pnpm-workspace.yaml or package.json workspaces.');
+  });
+
+  it('does not record a package whose scaffold failed, so it can be retried', async () => {
+    const projectRoot = await createInitializedProject(createWorkspaceFiles(), []);
+    // A file appearing between the preview and applying makes that write fail.
+    const { status, transcript } = await add(
+      projectRoot,
+      { kind: 'package', name: '@acme/utils' },
+      answer((question) => {
+        if (question.message === 'Apply these changes?') {
+          mkdirSync(join(projectRoot, 'packages/utils'), { recursive: true });
+          writeFileSync(join(projectRoot, 'packages/utils/package.json'), '{}\n');
+
+          return true;
+        }
+
+        return undefined;
+      }),
+    );
+
+    expect(status).toBe('incomplete');
+    expect(transcript.at(-1)).toBe('outro: Finished with errors. Remove what was created in packages/utils, then run jfdevelops add package @acme/utils again.');
+    expect((await readProjectConfig(projectRoot))?.targets.map((target) => target.path)).not.toContain('packages/utils');
+  });
+});
+
+describe('failed skill additions', () => {
+  it('point to skills sync to finish the remaining files', async () => {
+    const projectRoot = await createInitializedProject(createAppFiles(), ['build-forms']);
+    const { status, transcript } = await add(
+      projectRoot,
+      { kind: 'skill', name: 'validate-forms' },
+      answer((question) => {
+        if (question.message === 'Apply these changes?') {
+          mkdirSync(join(projectRoot, '.cursor/skills/validate-forms'), { recursive: true });
+          writeFileSync(join(projectRoot, '.cursor/skills/validate-forms/SKILL.md'), 'mine\n');
+
+          return true;
+        }
+
+        return undefined;
+      }),
+    );
+
+    expect(status).toBe('incomplete');
+    expect(transcript.at(-1)).toBe('outro: Finished with errors. Run jfdevelops skills sync to install the remaining skill files.');
   });
 });
 
