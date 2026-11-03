@@ -43,12 +43,20 @@ describe('createProgram', () => {
     expect(error).toMatchObject({ code: 'commander.version', exitCode: 0 });
   });
 
-  it('prints help listing init when no command is given', async () => {
+  it('prints help listing create and init when no command is given', async () => {
     const { output, error } = await runProgram([]);
 
     expect(output).toContain('Usage: jfdevelops [options] [command]');
+    expect(output).toMatch(/create \[directory\]\s+Create a new app or library/);
     expect(output).toMatch(/init \[directory\]\s+Adopt an existing project/);
     expect(error).toMatchObject({ exitCode: 0 });
+  });
+
+  it('names unknown commands', async () => {
+    const { output, error } = await runProgram(['deploy']);
+
+    expect(output).toContain("error: unknown command 'deploy'. Run jfdevelops --help to see the available commands.");
+    expect(error).toMatchObject({ exitCode: 1 });
   });
 
   it('rejects unknown options', async () => {
@@ -56,6 +64,50 @@ describe('createProgram', () => {
 
     expect(output).toContain("unknown option '--nope'");
     expect(error).toMatchObject({ exitCode: 1 });
+  });
+});
+
+describe('create command', () => {
+  it('routes a destination through the create flow', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter((question) => {
+      if (question.kind === 'text') {
+
+        return 'site';
+      }
+
+      if (question.kind === 'confirm') {
+
+        return false;
+      }
+
+      if (question.kind === 'multiselect') {
+
+        return [];
+      }
+
+      return question.initialValue ?? question.choices[0]?.value ?? '';
+    });
+
+    fixtures.push(fixture);
+
+    await runProgram(['create', destination], { createPrompter: () => prompter, isInteractive: () => true, installDependency: async () => undefined });
+
+    expect(transcript[0]).toBe('intro: jfdevelops create');
+    expect(transcript.at(-1)).toBe('cancel: Project creation cancelled. No files were changed.');
+    expect(existsSync(destination)).toBe(false);
+  });
+});
+
+describe('create skills command', () => {
+  it('routes create skills separately from create and requires a terminal', async () => {
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+    const { output, error } = await runProgram(['create', 'skills', '--package', '@acme/forms'], { createPrompter: () => prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops create skills is interactive; run it in a terminal.');
+    expect(error).toMatchObject({ exitCode: 1 });
+    expect(transcript).toEqual([]);
   });
 });
 
@@ -74,7 +126,7 @@ describe('init command', () => {
 
     fixtures.push(fixture);
 
-    await runProgram(['init', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
+    await runProgram(['init', fixture.root], { createPrompter: () => prompter, isInteractive: () => true, installDependency: async () => undefined });
 
     expect(transcript[0]).toBe('intro: jfdevelops init');
     expect(transcript.at(-1)).toBe('outro: Project initialized.');
@@ -91,5 +143,63 @@ describe('init command', () => {
     await runProgram(['init', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
 
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe('skills command', () => {
+  async function createConfiguredProject() {
+    const fixture = await createFixture({
+      'package.json': { name: 'site', private: true },
+      'jfdevelops.json': {
+        schemaVersion: 1,
+        generator: { package: '@jfdevelops/cli', version: '0.1.0' },
+        project: { name: 'site', packageManager: 'npm' },
+      },
+    });
+
+    fixtures.push(fixture);
+
+    return fixture.root;
+  }
+
+  it('reports status without a terminal and fails --check when out of sync', async () => {
+    const projectRoot = await createConfiguredProject();
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+    const dependencies = { createPrompter: () => prompter, isInteractive: () => false };
+
+    await runProgram(['skills', projectRoot], dependencies);
+
+    expect(transcript[0]).toBe('intro: jfdevelops skills');
+    expect(transcript.at(-1)).toBe('outro: Run jfdevelops skills sync to review and apply updates.');
+    expect(process.exitCode).toBeUndefined();
+
+    await runProgram(['skills', projectRoot, '--check'], dependencies);
+
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('lists additions without a terminal but requires one to add', async () => {
+    const projectRoot = await createConfiguredProject();
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+    const dependencies = { createPrompter: () => prompter, isInteractive: () => false };
+
+    await runProgram(['add', '--list', '--directory', projectRoot], dependencies);
+
+    expect(transcript[0]).toBe('intro: jfdevelops add --list');
+    expect(transcript.some((line) => line.startsWith('note [Available additions]'))).toBe(true);
+
+    const { output, error } = await runProgram(['add', 'skill', 'jf-git', '--directory', projectRoot], dependencies);
+
+    expect(output).toContain('jfdevelops add is interactive; run it in a terminal, or use add --list.');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+
+  it('routes sync and refuses to run it without a terminal', async () => {
+    const projectRoot = await createConfiguredProject();
+    const { prompter } = createScriptedPrompter(() => 'cancel');
+    const { output, error } = await runProgram(['skills', 'sync', projectRoot], { createPrompter: () => prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops skills sync is interactive; run it in a terminal.');
+    expect(error).toMatchObject({ exitCode: 1 });
   });
 });

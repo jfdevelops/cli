@@ -178,7 +178,7 @@ Validate content parity and test actual discovery in the supported agent version
 - [x] Add metadata/path validation, skill tests, package-content checks, and CI configuration.
 - [x] Install Commander and Clack and verify dependency imports/parsing.
 
-Both packages are unpublished. The CLI is private and has no command executable yet. The CLI currently consumes checked-in snapshots from the local skills repository; after the first shared-skills release, pin that package as a development dependency and synchronize from the installed version. Configured CI still needs a remote run after authorized pushes.
+Both packages were first published as version `0.1.0`. The CLI ships a command executable and pins the shared-skills package so required conventions are available during project adoption. CI runs the supported platform and Node.js matrix; releases are published through the configured Changesets workflow.
 
 ### 1. Shared engine — complete
 
@@ -190,52 +190,53 @@ Both packages are unpublished. The CLI is private and has no command executable 
 
 Completion: representative new and existing project fixtures produce correct discovery and change plans, preserve unrelated content, and support repeat runs without duplicate changes.
 
-### 2. Existing-project `init` — next
+### 2. Existing-project `init` — complete
 
 - [x] Add the command entry point, Commander routing/help, and Clack prompt boundary.
-- [ ] Confirm detected targets/integrations and select skills.
-- [ ] Preview and apply setup, instruction pointers, CLI dependency, and configuration.
+- [x] Confirm detected targets/integrations and select skills.
+- [x] Preview and apply setup, instruction pointers, CLI dependency, and configuration.
 - [x] Cover cancellation, conflicts, partial failures, and unchanged repeat runs.
 
 Completion: initialize an existing project, select skills, review the changes, and install them without disturbing its files or Git history. This is the first usable product milestone.
 
-### 3. New-project `create`
+### 3. New-project `create` — complete
 
-- [ ] Define initial app and library templates and their follow-up questions.
-- [ ] Reuse the setup engine for chosen addons and skills.
-- [ ] Establish formatter-independent style enforcement.
-- [ ] Generate and verify the new project's foundation and initial Git commit.
+- [x] Define initial app and library templates and their follow-up questions.
+- [x] Reuse the setup engine for chosen addons and skills.
+- [x] Establish formatter-independent style enforcement.
+- [x] Generate and verify the new project's foundation and initial Git commit.
 
 Completion: both app and library flows generate a usable project with only selected integrations, correct skills, recorded choices, and passing applicable checks.
 
-### 4. Ongoing additions and discovery
+### 4. Ongoing additions and discovery — complete
 
-- [ ] Implement `add`, `add --list`, and skill/addon/package additions.
-- [ ] Implement `skills` status and explicit `skills sync`.
-- [ ] Handle package upgrades, missing sources, name conflicts, target compatibility, and edited skill copies.
+- [x] Implement `add`, `add --list`, and skill/addon/package additions.
+- [x] Implement `skills` status and explicit `skills sync`.
+- [x] Handle package upgrades, missing sources, name conflicts, target compatibility, and edited skill copies.
 
 Completion: extend an initialized project and reconcile its enabled skills without overwriting local edits or enabling unselected integrations.
 
 ### 5. Library authoring support
 
-- [ ] Implement `create skills` for single packages and workspaces.
-- [ ] Register existing skills or scaffold new ones with publication validation.
+- [x] Implement `create skills` for single packages and workspaces.
+- [x] Register existing skills or scaffold new ones with publication validation.
 - [ ] Add discovery metadata to participating jfdevelops libraries in separately authorized changes.
 
 Completion: a library tarball exposes its declared skills, and the CLI discovers those exact files from an installed consumer dependency.
 
 ### 6. Release readiness
 
-- [ ] Test command behavior, real packed executables, and supported operating systems/Node versions.
-- [ ] Verify interactive cancellation and non-interactive behavior where supported.
-- [ ] Smoke-test agent discovery adapters and formatter combinations.
-- [ ] Document onboarding, conflicts, configuration evolution, and skill updates.
+- [x] Test command behavior, real packed executables, and supported operating systems/Node versions.
+- [x] Verify interactive cancellation and non-interactive behavior where supported.
+- [x] Smoke-test agent discovery adapters and formatter combinations.
+- [x] Document onboarding, conflicts, configuration evolution, and skill updates.
 - [ ] Publish the shared skills and CLI packages through separately authorized releases.
 
 ## Decisions still open
 
 - Initial app/library templates and exact follow-up choices.
 - Which formatters ship first, and whether gaps inside import groups are allowed.
+- What each addon scaffolds beyond installing its package, recording it, and offering its skills.
 - Final configuration structure, schema hosting, and migration strategy.
 - Target scoping of native agent discovery when a monorepo mixes integrations.
 - Catalog mappings for libraries without metadata and ambiguous skill-name selection.

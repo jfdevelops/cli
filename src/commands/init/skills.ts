@@ -32,8 +32,13 @@ export function findMissingSourceSkills(catalog: SkillCatalog, enabledSkills: En
  */
 export async function selectSkills(catalog: SkillCatalog, enabledSkills: EnabledSkill[], prompter: Prompter) {
   const conflictNames = new Set(catalog.conflicts.map((conflict) => conflict.name));
-  const unambiguous = catalog.skills.filter((skill) => !conflictNames.has(skill.name));
-  const selected: CatalogSkill[] = [];
+  const required = catalog.skills.filter((skill) => skill.required);
+  const unambiguous = catalog.skills.filter((skill) => !skill.required && !conflictNames.has(skill.name));
+  const selected: CatalogSkill[] = [...required];
+
+  if (required.length > 0) {
+    prompter.info(`Required convention skills: ${required.map((skill) => skill.name).join(', ')}`);
+  }
 
   if (unambiguous.length > 0) {
     const keys = await prompter.multiselect({
@@ -46,7 +51,16 @@ export async function selectSkills(catalog: SkillCatalog, enabledSkills: Enabled
   }
 
   for (const conflict of catalog.conflicts) {
-    const candidates = catalog.skills.filter((skill) => skill.name === conflict.name);
+    if (required.some((skill) => skill.name === conflict.name)) {
+      prompter.warn(`${conflict.name} is required from @jfdevelops/skills; other providers were ignored.`);
+      continue;
+    }
+
+    const candidates = catalog.skills.filter((skill) => skill.name === conflict.name && !skill.required);
+
+    if (candidates.length === 0) {
+      continue;
+    }
     const enabledCandidate = candidates.find((skill) => isEnabled(skill, enabledSkills));
     const key = await prompter.select({
       message: `${conflict.name} is provided by more than one package or version. Which should be installed?`,

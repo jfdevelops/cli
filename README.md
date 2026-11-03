@@ -1,42 +1,46 @@
 # @jfdevelops/cli
 
-Interactive project setup and skill discovery for new and existing projects. This repository currently contains its project foundation and three required convention skills. The `jfdevelops` executable supports `init`, which adopts an existing project interactively; the other commands below are planned.
+Set up new and existing projects with the jfdevelops conventions and the agent skills their dependencies publish, then keep those skills current.
 
-See [the project roadmap](ROADMAP.md) for the agreed scope, implementation milestones, and open decisions.
+```sh
+npx @jfdevelops/cli create my-project   # start a new app or library
+npx @jfdevelops/cli init                # adopt an existing project
+```
 
-## Planned commands
+Every command that changes files previews the full plan, shows a diff for anything you edited, and writes nothing until you confirm.
+
+## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `create` | Interactive app or library scaffolding |
-| `init` | Adopt existing projects and integrations with a change preview |
-| `add` / `add --list` | Browse compatible additions |
-| `add skill <name>` | Enable a selected skill |
-| `add addon <name>` | Configure an optional integration and its selected skills |
-| `add package <name>` | Scaffold a package within a library workspace |
-| `create skills` | Scaffold or register package-owned skills and publish metadata |
-| `skills` / `skills sync` | Discover skills and reconcile enabled skills with installed versions |
-| `help` | Command help |
+| `create [directory]` | Create a TypeScript app or library with your choice of formatter and optional Git initialization |
+| `init [directory]` | Adopt an existing project: confirm targets and integrations, choose skills, review every change |
+| `add` / `add --list` | Browse or list compatible additions |
+| `add skill <name>` | Enable one skill from an installed package |
+| `add addon <name>` | Adopt or install Convex, Portless, or an individual TanStack or jfdevelops library |
+| `add package <name>` | Scaffold a TypeScript library in the workspace |
+| `skills` / `skills sync` | Check enabled skills against installed versions and update them |
+| `create skills` | Register or scaffold the skills a library publishes and verify its tarball |
 
-The intended invocation is `npx @jfdevelops/cli <command>`. Portless, Convex, TanStack libraries, and jfdevelops libraries are opt-in. Addon skills are installed only when the addon is selected. Projects may contain both app and library targets.
+## Documentation
 
-The CLI uses Commander for command parsing, subcommands, flags, and help, and Clack for interactive prompts and progress output. Both are installed as runtime dependencies. Command handlers and interactive flows will be implemented next, with project operations kept separate from terminal input/output. Development requires Node.js 22.12.0 or newer and pnpm 10.28.1.
+- [Getting started](docs/getting-started.md): first run, what ends up in your project, and keeping it current.
+- [Command reference](docs/commands.md): every command, option, terminal requirement, and exit code.
+- [Skills, updates, and conflicts](docs/skills.md): skill sources, status, syncing, and how local edits are protected.
+- [Configuration](docs/configuration.md): `jfdevelops.json` fields and how the format evolves.
+- [Authoring skills](docs/authoring.md): publishing skills from a library with `create skills`.
 
-## Required project skills
+See [the project roadmap](ROADMAP.md) for scope, milestones, and open decisions.
 
-Naming, coding, and unified Git conventions are copied from `@jfdevelops/skills` version `0.1.0`, with source paths and per-file SHA-256 digests recorded in `jfdevelops.json`. All Git guidance lives in `jf-git/`: its master `SKILL.md` requires reading the current repository's conventions before choosing branch names, writing commits, or creating PRs, then routes to branch, commit, and PR references. Applicable repository rules override shared defaults, with current explicit user instructions taking precedence. AGENTS.md requires loading the applicable instructions; native discovery copies are supplied for agents with differing directory conventions. Compatibility requires the agent to support file access and read the supplied instructions.
+## Developing the CLI
 
-Until the skills package is published, these are checked-in snapshots generated from the sibling `skills` repository. There is no unresolved registry dependency or external path dependency required to run checks. After the first skills release, the CLI should pin that published package as a dev dependency and use the installed package as the synchronization source.
+Development requires Node.js 22.12.0 or newer and pnpm 10.28.1. The CLI uses Commander for commands and Clack for prompts, and keeps prompts separate from detection, planning, and file operations.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm check
-# Regenerate owned agent files from the sibling skills repository:
-pnpm skills:sync
+pnpm check          # typecheck, tests, skill provenance, and the packed executable
+pnpm smoke:create   # create, install, format, lint, and build real projects (needs network)
+pnpm skills:sync    # regenerate this repository's agent files from the sibling skills checkout
 ```
 
-## Next implementation step
-
-The shared engine is in place: project detection (`src/detect`), package-owned skill discovery (`src/skills`), and read-only change plans applied with per-file results (`src/plan`). Implement `init` on top of it, then reuse that engine for `create` and `add`. Existing user files must be preserved; locally modified managed files need a reviewable conflict. The bootstrap sync script is development tooling for these two new repositories, not that installer.
-
-The schema version 1 project configuration is defined and validated in `src/config/schema.ts`: generator, project, targets, addons, formatter, skill provenance, and per-file managed-file hashes. This repository's own `jfdevelops.json` still uses the skills-only bootstrap shape written by the sibling sync script until that script emits the new structure. Target detection, addon state, and package scaffolding will populate the configuration with their respective features.
+This repository follows the shared naming, coding, and Git conventions from `@jfdevelops/skills`, installed as checked-in copies with their provenance recorded in `jfdevelops.json`. See [CONTRIBUTING.md](CONTRIBUTING.md) before changing conventions or tooling.

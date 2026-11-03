@@ -13,6 +13,7 @@ export type Prompter = {
   warn: (message: string) => void;
   success: (message: string) => void;
   error: (message: string) => void;
+  text: (options: { message: string; initialValue?: string; placeholder?: string }) => Promise<string>;
   select: <Value extends string>(options: { message: string; choices: Choice<Value>[]; initialValue?: Value }) => Promise<Value>;
   multiselect: <Value extends string>(options: { message: string; choices: Choice<Value>[]; initialValues?: Value[] }) => Promise<Value[]>;
   confirm: (options: { message: string; initialValue?: boolean }) => Promise<boolean>;

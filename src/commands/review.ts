@@ -1,7 +1,7 @@
-import type { Prompter } from '../../prompts/prompter.js';
-import { canOverwrite, type ConflictResolution } from '../../plan/apply.js';
-import type { ChangePlan, ConflictReason } from '../../plan/create.js';
-import { formatChangeDiff } from '../../plan/diff.js';
+import { canOverwrite, type ApplyResult, type ConflictResolution } from '../plan/apply.js';
+import type { ChangePlan, ConflictReason } from '../plan/create.js';
+import { formatChangeDiff } from '../plan/diff.js';
+import type { Prompter } from '../prompts/prompter.js';
 
 const reasonDescriptions: Record<ConflictReason, string> = {
   'locally-edited': 'was edited after the CLI last wrote it',
@@ -52,4 +52,18 @@ export async function resolveConflicts(plan: ChangePlan, prompter: Prompter) {
   }
 
   return resolutions;
+}
+
+export function reportApplyResult(result: ApplyResult, prompter: Prompter) {
+  if (result.applied.length > 0) {
+    prompter.success(`Applied ${result.applied.length} change${result.applied.length === 1 ? '' : 's'}.`);
+  }
+
+  if (result.skipped.length > 0) {
+    prompter.info(`Kept unchanged: ${result.skipped.map((file) => file.path).join(', ')}`);
+  }
+
+  for (const file of result.failed) {
+    prompter.error(`${file.path}: ${file.message}`);
+  }
 }

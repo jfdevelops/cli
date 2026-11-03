@@ -11,12 +11,18 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
+      '@jfdevelops/skills':
+        specifier: 0.1.0
+        version: 0.1.0
       commander:
         specifier: ^15.0.0
         version: 15.0.0
       diff:
         specifier: ^9.0.0
         version: 9.0.0
+      picomatch:
+        specifier: ^4.0.7
+        version: 4.0.7
       tinyglobby:
         specifier: ^0.2.17
         version: 0.2.17
@@ -33,6 +39,9 @@ importers:
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
+      '@types/picomatch':
+        specifier: ^4.0.3
+        version: 4.0.3
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -110,6 +119,10 @@ packages:
   '@clack/prompts@1.8.1':
     resolution: {integrity: sha512-dlT1m5e/0yUL0kRNcQn7yGLVThkgbB0Ga/1AmfDDC/8ik6AIiSf2QLQO2zPYvefsHP0aFgxO93cVLCCfDp7kzQ==}
     engines: {node: '>= 20.12.0'}
+
+  '@jfdevelops/skills@0.1.0':
+    resolution: {integrity: sha512-aJRJKSmjaNFf/S/Y0cmYDgWfjFhnb0hFkVOUBWU9x7hCdQRV2P5RGaEY5FxvEtQTeVLrJiKNedBffss2dlIP+Q==}
+    engines: {node: '>=22'}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -244,6 +257,9 @@ packages:
 
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
+
+  '@types/picomatch@4.0.3':
+    resolution: {integrity: sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -807,6 +823,8 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
+  '@jfdevelops/skills@0.1.0': {}
+
   '@jridgewell/resolve-uri@3.1.2': {}
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
@@ -894,6 +912,8 @@ snapshots:
   '@types/node@22.20.5':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/picomatch@4.0.3': {}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/, 'Expected a lowercase hex SHA-256 digest');
 const nameSchema = z.string().max(64).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Expected a lowercase kebab-case name');
-const packageNameSchema = z.string().regex(/^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/, 'Expected an npm package name');
+export const packageNameSchema = z.string().regex(/^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/, 'Expected an npm package name');
 const optionsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]));
 
 // Project-relative POSIX path without drive letters, backslashes, or empty, `.`, or `..` segments.

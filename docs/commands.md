@@ -1,0 +1,69 @@
+# Command reference
+
+Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` once the CLI is a dependency of the project. `jfdevelops --help` and `jfdevelops <command> --help` list every option.
+
+| Command | What it does | Needs a terminal |
+| --- | --- | --- |
+| `create [directory]` | Create an app or library from a template | Yes |
+| `create skills` | Register or scaffold skills in a library package and verify they are published | Yes |
+| `init [directory]` | Adopt an existing project | Yes |
+| `add` | Browse and choose an addition | Yes |
+| `add --list` | List compatible additions without changing anything | No |
+| `add skill <name>` | Enable one skill from an installed package | Yes |
+| `add addon <name>` | Adopt or install an integration and offer its skills | Yes |
+| `add package <name>` | Scaffold a TypeScript library in the workspace | Yes |
+| `skills [directory]` | Report whether enabled skills match installed versions | No |
+| `skills sync [directory]` | Update skill copies to the installed versions | Yes |
+
+Interactive commands refuse to run without a terminal and exit with code 1, rather than waiting for input that cannot arrive. There are no flags that answer prompts automatically yet.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Finished, including when nothing needed to change or you cancelled |
+| 1 | Failed, finished with errors on some files, or was run without a required terminal; `skills --check` also uses 1 when skills need syncing |
+
+## `create [directory]`
+
+Prompts for the package name, destination (when not given), app or library, template, package manager, formatter, and Git initialization. Templates:
+
+| Template | Kind | Contents |
+| --- | --- | --- |
+| `node-app` | App | Private TypeScript application compiled for Node.js |
+| `typescript-library` | Library | Publishable ESM library with type declarations |
+
+Both include the selected formatter (Prettier or Biome) and an ESLint Stylistic policy that enforces the shared spacing and brace rules through `format` and `format:check` scripts.
+
+## `create skills`
+
+| Option | Description |
+| --- | --- |
+| `--package <name>` | The workspace package that owns the skills; otherwise you choose, or the only library is used |
+| `--path <skill-directory>` | Register this directory, or scaffold a skill there when it has no `SKILL.md` |
+| `-d, --directory <path>` | Project directory (default `.`) |
+
+See [authoring skills](authoring.md).
+
+## `init [directory]`
+
+Detects the project, confirms target types and integrations, lets you choose skills, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds the CLI as an exact development dependency when it is missing.
+
+## `add`
+
+All `add` commands accept `-d, --directory <path>` (default `.`).
+
+- **`add --list`** prints available skills with their source and the workspace packages that can use them, addons that are installed but not adopted or that can be installed, and whether `add package` is available.
+- **`add skill <name>`** asks which source to use when more than one package or version provides the name.
+- **`add addon <name>`** accepts `convex`, `portless`, or an individual `@tanstack/*` or `@jfdevelops/*` library. An installed integration is adopted as is; otherwise the package is installed with your package manager after confirmation (Portless as a development dependency). Its skills are then offered. Addon skills never appear elsewhere until the addon is enabled.
+- **`add package <name>`** needs a workspace (`pnpm-workspace.yaml` or `package.json` workspaces). It suggests a directory from your workspace patterns, adds the directory to the workspace when no pattern covers it, and records the package as a library target. Run your package manager's install afterwards to link it.
+
+## `skills [directory]`
+
+| Option | Description |
+| --- | --- |
+| `--check` | Exit with code 1 when anything needs syncing, for CI |
+
+## `skills sync [directory]`
+
+Offers to remove skills whose package is gone, asks which version to use when a skill is installed in several versions, previews the updates, and asks about each locally edited copy. See [skills and conflicts](skills.md).

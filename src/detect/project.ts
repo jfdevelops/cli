@@ -31,6 +31,7 @@ export async function detectProject(directory: string) {
   return {
     root: projectRoot,
     name: manifest.name ?? basename(projectRoot),
+    manifest,
     packageManager: packageManagerDetection.packageManager,
     lockfiles: packageManagerDetection.lockfiles,
     workspace: workspaceDetection.workspace,
