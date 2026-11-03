@@ -38,9 +38,9 @@ async function runPackageManager(directory: string, packageManager: PackageManag
   await runCommand(packageManager, arguments_, { cwd: directory });
 }
 
-export const installDevelopmentDependency: DependencyInstaller = async ({ directory, packageManager, packageName, version, isWorkspaceRoot }) => {
+export async function installDevelopmentDependency({ directory, packageManager, packageName, version, isWorkspaceRoot }: Parameters<DependencyInstaller>[0]) {
   await runPackageManager(directory, packageManager, getArguments(packageManager, packageName, version, isWorkspaceRoot));
-};
+}
 
 export type PackageInstaller = (options: {
   directory: string;
@@ -64,6 +64,6 @@ export function describePackageInstall(packageManager: PackageManagerName, packa
 }
 
 // Adds the latest version of a package, as a development dependency when requested.
-export const installPackage: PackageInstaller = async ({ directory, packageManager, packageName, isDevelopment, isWorkspaceRoot }) => {
+export async function installPackage({ directory, packageManager, packageName, isDevelopment, isWorkspaceRoot }: Parameters<PackageInstaller>[0]) {
   await runPackageManager(directory, packageManager, getPackageArguments(packageManager, packageName, isDevelopment, isWorkspaceRoot));
-};
+}

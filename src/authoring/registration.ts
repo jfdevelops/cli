@@ -45,7 +45,17 @@ export function createRegistrationEdit(manifestPath: string, entries: PackageSki
 
       const manifest = JSON.parse(current) as { files?: string[]; jfdevelops?: { skills?: PackageSkillEntry[] } };
       const existing = manifest.jfdevelops?.skills ?? [];
-      const added = entries.filter((entry) => !existing.some((registered) => registered.name === entry.name || registered.path === entry.path));
+      const added: PackageSkillEntry[] = [];
+
+      // Each name and path is registered once, whether it was already in the manifest or repeated in this batch.
+      for (const entry of entries) {
+        const isTaken = [...existing, ...added].some((registered) => registered.name === entry.name || registered.path === entry.path);
+
+        if (!isTaken) {
+          added.push(entry);
+        }
+      }
+
       const unpublished = added.filter((entry) => !isPublished(manifest.files, entry.path));
       const topDirectories = [...new Set(unpublished.map((entry) => normalizeEntry(entry.path).split('/')[0] ?? ''))];
 
