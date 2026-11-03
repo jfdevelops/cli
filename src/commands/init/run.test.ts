@@ -212,6 +212,47 @@ describe('runInit', () => {
     ]);
   });
 
+  it('removes the skills of an integration that is deselected later', async () => {
+    const projectRoot = await createProject(
+      createProjectFiles({
+        'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { portless: '1.0.0' } },
+        ...createSkillPackage('node_modules/portless', { name: 'portless', version: '1.0.0', skills: ['portless-dev'] }),
+      }),
+    );
+
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer(['portless', 'portless-dev'])).prompter })).resolves.toBe(
+      'complete',
+    );
+    expect(existsSync(join(projectRoot, '.agents/skills/portless-dev/SKILL.md'))).toBe(true);
+
+    const { prompter, transcript } = createScriptedPrompter(answer([]));
+
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
+    expect(transcript.some((line) => line.includes('portless-dev is enabled but'))).toBe(false);
+    expect(existsSync(join(projectRoot, '.agents/skills/portless-dev'))).toBe(false);
+    expect(await readProjectConfig(projectRoot)).toMatchObject({ addons: [] });
+    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).not.toContain('portless-dev');
+  });
+
+  it('installs the CLI at a pnpm workspace root with --workspace-root', async () => {
+    const projectRoot = await createProject(
+      createProjectFiles({
+        'package.json': { name: 'monorepo', private: true, packageManager: 'pnpm@10.28.1' },
+        'pnpm-workspace.yaml': 'packages:\n  - apps/*\n  - packages/*\n',
+        'packages/ui/package.json': { name: '@acme/ui', version: '1.0.0', exports: './index.js' },
+      }),
+    );
+    const installs: unknown[] = [];
+    const { prompter, transcript } = createScriptedPrompter(answer([]));
+
+    await runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency: async (options) => void installs.push(options) });
+
+    expect(installs).toEqual([expect.objectContaining({ packageManager: 'pnpm', isWorkspaceRoot: true })]);
+    expect(transcript.find((line) => line.startsWith('note [Planned changes]'))).toContain(
+      'Install development dependency: pnpm add --save-dev --save-exact --workspace-root @jfdevelops/cli@0.1.0',
+    );
+  });
+
   it('reports an incomplete result when the CLI development dependency cannot be installed', async () => {
     const projectRoot = await createProject(createProjectFiles());
     const { prompter, transcript } = createScriptedPrompter(answer([]));
