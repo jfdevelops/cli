@@ -27,6 +27,7 @@ describe('projectTemplates', () => {
       'README.md',
       'eslint.config.js',
       '.prettierrc.json',
+      '.prettierignore',
       'package.json',
       'tsconfig.json',
       'src/index.ts',

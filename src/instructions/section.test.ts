@@ -6,21 +6,21 @@ const end = '<!-- jfdevelops:end -->';
 
 describe('upsertManagedSection', () => {
   it('creates a file with the heading and block', () => {
-    expect(upsertManagedSection(undefined, 'Body', '# Title')).toBe(`# Title\n\n${start}\nBody\n${end}\n`);
+    expect(upsertManagedSection(undefined, 'Body', '# Title')).toBe(`# Title\n\n${start}\n\nBody\n\n${end}\n`);
   });
 
   it('appends the block after existing content', () => {
-    expect(upsertManagedSection('# Mine\n\nKeep me.\n\n\n', 'Body', '# Title')).toBe(`# Mine\n\nKeep me.\n\n${start}\nBody\n${end}\n`);
+    expect(upsertManagedSection('# Mine\n\nKeep me.\n\n\n', 'Body', '# Title')).toBe(`# Mine\n\nKeep me.\n\n${start}\n\nBody\n\n${end}\n`);
   });
 
-  it('replaces only the existing block', () => {
+  it('replaces only the existing block, including blocks written without inner blank lines', () => {
     const current = `# Mine\n\n${start}\nOld\n${end}\n\nAfter.\n`;
 
-    expect(upsertManagedSection(current, 'New', '# Title')).toBe(`# Mine\n\n${start}\nNew\n${end}\n\nAfter.\n`);
+    expect(upsertManagedSection(current, 'New', '# Title')).toBe(`# Mine\n\n${start}\n\nNew\n\n${end}\n\nAfter.\n`);
   });
 
   it('preserves CRLF line endings', () => {
-    expect(upsertManagedSection('# Mine\r\n', 'One\nTwo', '# Title')).toBe(`# Mine\r\n\r\n${start}\r\nOne\r\nTwo\r\n${end}\r\n`);
+    expect(upsertManagedSection('# Mine\r\n', 'One\nTwo', '# Title')).toBe(`# Mine\r\n\r\n${start}\r\n\r\nOne\r\nTwo\r\n\r\n${end}\r\n`);
   });
 
   it('is stable when applied repeatedly', () => {

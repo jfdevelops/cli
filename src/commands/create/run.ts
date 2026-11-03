@@ -8,13 +8,14 @@ import type { PackageManagerName } from '../../detect/package-manager.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
 import { applyChangePlan } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
+import { refreshManagedFiles } from '../../plan/refresh.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { describePlan, resolveConflicts } from '../review.js';
-import { initializeProjectGit, verifyCreatedProject, type GitInitializer, type ProjectVerifier } from './lifecycle.js';
+import { formatCreatedProject, initializeProjectGit, verifyCreatedProject, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
 
 export type CreateOptions = {
@@ -22,6 +23,7 @@ export type CreateOptions = {
   version: string;
   prompter: Prompter;
   installDependency?: DependencyInstaller;
+  formatProject?: ProjectFormatter;
   verifyProject?: ProjectVerifier;
   initializeGit?: GitInitializer;
 };
@@ -99,6 +101,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     version,
     prompter,
     installDependency = installDevelopmentDependency,
+    formatProject = formatCreatedProject,
     verifyProject = verifyCreatedProject,
     initializeGit = initializeProjectGit,
   } = options;
@@ -135,7 +138,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const plannedChanges = describePlan(plan, true);
 
   plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version)}`);
-  plannedChanges.push(`Verify project: ${selection.packageManager} run format:check, then ${selection.packageManager} run build`);
+  plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then format:check and build`);
 
   if (selection.shouldInitializeGit) {
     plannedChanges.push('Initialize Git on main and create chore(init): initialize project');
@@ -166,11 +169,22 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     prompter.error(`Could not install project dependencies: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  await writeProjectConfig(selection.directory, createInitConfig({ ...configOptions, managedFiles: result.managedFiles }));
-
+  let managedFiles = result.managedFiles;
   let verificationError: unknown;
 
   if (result.isComplete && !dependencyError) {
+    try {
+      await formatProject({ directory: selection.directory, packageManager: selection.packageManager });
+      managedFiles = await refreshManagedFiles(selection.directory, managedFiles, (file) => file.owner.type === 'project');
+    } catch (error) {
+      verificationError = error;
+      prompter.error(`Could not format the project: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  await writeProjectConfig(selection.directory, createInitConfig({ ...configOptions, managedFiles }));
+
+  if (result.isComplete && !dependencyError && !verificationError) {
     try {
       await verifyProject({ directory: selection.directory, packageManager: selection.packageManager });
 

@@ -75,6 +75,7 @@ describe('runCreate', () => {
         version: '0.1.0',
         prompter,
         installDependency: installTestDependency,
+        formatProject: async () => undefined,
         verifyProject: async () => {
           lifecycle.push('verified');
         },
@@ -126,6 +127,7 @@ describe('runCreate', () => {
         version: '0.1.0',
         prompter,
         installDependency: installTestDependency,
+        formatProject: async () => undefined,
         verifyProject: async () => undefined,
         initializeGit: async () => undefined,
       }),
@@ -146,6 +148,7 @@ describe('runCreate', () => {
         version: '0.1.0',
         prompter,
         installDependency: installTestDependency,
+        formatProject: async () => undefined,
         verifyProject: async () => undefined,
         initializeGit: async () => undefined,
       }),

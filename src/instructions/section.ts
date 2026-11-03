@@ -11,7 +11,8 @@ export class ManagedSectionError extends Error {
  */
 export function upsertManagedSection(current: string | undefined, body: string, heading: string) {
   const newline = current?.includes('\r\n') ? '\r\n' : '\n';
-  const block = [startMarker, body.trimEnd(), endMarker].join('\n').replaceAll('\n', newline);
+  // Blank lines around the body keep Markdown formatters such as Prettier from rewriting the block.
+  const block = [startMarker, '', body.trimEnd(), '', endMarker].join('\n').replaceAll('\n', newline);
 
   if (current === undefined) {
 

@@ -27,6 +27,12 @@ export const projectTemplates = [
 
 const projectOwner = { type: 'project' as const };
 
+// typescript-eslint, which the style policy runs on, supports TypeScript below 6.1.
+const typescriptVersion = '^6.0.3';
+
+// Files rewritten by the CLI or package managers; formatting them would make managed copies look locally edited.
+const unformattedPaths = ['.agents', '.claude/skills', '.cursor/skills', '.github/skills', 'jfdevelops.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'dist'];
+
 const libraryCompiler = {
   compilerOptions: {
     target: 'ES2024',
@@ -82,12 +88,21 @@ export default [
   },
 ];
 `;
-  const formatterFile =
+  const formatterFiles =
     formatter === 'prettier'
-      ? createJsonFile('.prettierrc.json', { singleQuote: true, printWidth: 140 })
-      : createJsonFile('biome.json', { formatter: { enabled: true, lineWidth: 140 }, javascript: { formatter: { quoteStyle: 'single' } } });
+      ? [
+          createJsonFile('.prettierrc.json', { singleQuote: true, printWidth: 140 }),
+          { path: '.prettierignore', owner: projectOwner, content: `${unformattedPaths.join('\n')}\n` },
+        ]
+      : [
+          createJsonFile('biome.json', {
+            files: { includes: ['**', ...unformattedPaths.map((path) => `!${path}`)] },
+            formatter: { enabled: true, lineWidth: 140 },
+            javascript: { formatter: { quoteStyle: 'single' } },
+          }),
+        ];
 
-  return [{ path: 'eslint.config.js', owner: projectOwner, content: eslintConfig }, formatterFile];
+  return [{ path: 'eslint.config.js', owner: projectOwner, content: eslintConfig }, ...formatterFiles];
 }
 
 function getFormattingManifest(formatter: FormatterName) {
@@ -115,7 +130,7 @@ function createAppFiles(projectName: string, template: ProjectTemplate, cliVersi
     version: '0.0.0',
     type: 'module',
     scripts: { build: 'tsc', start: 'node dist/index.js', ...formatting.scripts },
-    devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': '^22.20.5', typescript: '^7.0.2', ...formatting.devDependencies },
+    devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': '^22.20.5', typescript: typescriptVersion, ...formatting.devDependencies },
   };
   const compiler = {
     compilerOptions: {
@@ -150,7 +165,7 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
     files: ['dist'],
     exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
     scripts: { build: 'tsc', prepack: 'tsc', ...formatting.scripts },
-    devDependencies: { '@jfdevelops/cli': cliVersion, typescript: '^7.0.2', ...formatting.devDependencies },
+    devDependencies: { '@jfdevelops/cli': cliVersion, typescript: typescriptVersion, ...formatting.devDependencies },
   };
 
   return [
@@ -174,7 +189,7 @@ export function createWorkspacePackageFiles(packageName: string) {
     files: ['dist'],
     exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
     scripts: { build: 'tsc', prepack: 'tsc' },
-    devDependencies: { typescript: '^7.0.2' },
+    devDependencies: { typescript: typescriptVersion },
   };
 
   return [

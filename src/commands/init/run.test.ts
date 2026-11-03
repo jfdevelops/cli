@@ -93,7 +93,7 @@ describe('runInit', () => {
     }
 
     expect(await readText(projectRoot, 'AGENTS.md')).toContain('- [build-forms](.agents/skills/build-forms/SKILL.md): Use build-forms');
-    expect(await readText(projectRoot, 'CLAUDE.md')).toMatch(/^# Claude\n\nProject notes\.\n\n<!-- jfdevelops:start -->\nRead AGENTS\.md/);
+    expect(await readText(projectRoot, 'CLAUDE.md')).toMatch(/^# Claude\n\nProject notes\.\n\n<!-- jfdevelops:start -->\n\nRead AGENTS\.md/);
 
     const config = await readProjectConfig(projectRoot);
 
