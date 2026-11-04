@@ -1,5 +1,11 @@
 # @jfdevelops/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- cbbbd6f: Let `jfdevelops create` take the package name as its argument, including scoped names, or `.` to create the project in the current directory, and skip the name and destination prompts when the name is valid.
+
 ## 0.2.0
 
 ### Minor Changes
