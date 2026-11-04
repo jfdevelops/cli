@@ -13,14 +13,28 @@ const fixtures: Array<{ remove: () => Promise<void> }> = [];
 
 const remotePrompt = 'Git remote URL (optional, press Enter to skip)';
 
-// `remoteUrls` are answers to the remote prompt in order; it skips the remote once they run out.
-function answerProject(overrides: Partial<Record<Question['kind'], string | boolean | string[]>> = {}, remoteUrls: string[] = []) {
+const addPackageMessages = ['Do you want to add a package?', 'Do you want to add a package? (this makes the project a workspace)'];
+
+// `remoteUrls` answer the remote prompt in order, skipping the remote once they run out. `libraryNames` are the packages
+// to add, in order; an empty string accepts the default name, and none means no packages are added.
+function answerProject(overrides: Partial<Record<Question['kind'], string | boolean | string[]>> = {}, remoteUrls: string[] = [], libraryNames: string[] = []) {
   const remaining = [...remoteUrls];
+  const names = [...libraryNames];
 
   return (question: Question) => {
     if (question.message === remotePrompt) {
 
       return remaining.shift() ?? '';
+    }
+
+    if (addPackageMessages.includes(question.message) || question.message === 'Add another package?') {
+
+      return names.length > 0;
+    }
+
+    if (question.message === 'What do you want to name this package?') {
+
+      return names.shift() ?? '';
     }
 
     const override = overrides[question.kind];
@@ -318,6 +332,58 @@ describe('runCreate', () => {
     expect(layout).toContain('├── apps/');
     expect(layout).toContain('(');
     expect(layout).toContain('Packages build on their own until you link them');
+  });
+
+  it('adds libraries to an app monorepo as private packages in packages', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ multiselect: ['monorepo'] }, [], ['utils', 'ui']));
+
+    fixtures.push(fixture);
+
+    await expect(runCreate({ directory: destination, version: '0.1.0', prompter, ...noopLifecycle })).resolves.toBe('complete');
+
+    const detected = await detectWorkspace(destination, {}, 'pnpm');
+
+    expect(JSON.parse(await readFile(join(destination, 'packages/utils/package.json'), 'utf8'))).toMatchObject({ name: 'site-utils', private: true });
+    expect(existsSync(join(destination, 'packages/ui/src/index.ts'))).toBe(true);
+    expect(detected.workspace?.packagePaths).toEqual(['apps/web', 'packages/ui', 'packages/utils']);
+    expect((await readProjectConfig(destination))?.targets.map((target) => [target.path, target.kind, target.template])).toEqual([
+      ['apps/web', 'app', 'node-app'],
+      ['packages/utils', 'library', 'typescript-library'],
+      ['packages/ui', 'library', 'typescript-library'],
+    ]);
+    expect(transcript).toContain('success: Added packages/utils (site-utils)');
+    expect(transcript.find((line) => line.startsWith('note [Project layout]'))).toContain('packages/');
+  });
+
+  it('turns a library into a workspace of publishable libraries when packages are added', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'kit');
+    // One answerer for the whole conversation keeps track of which package names are left to give.
+    const respond = answerProject({}, [], ['', 'utils']);
+    const { prompter } = createScriptedPrompter((question) => (question.message === 'What kind of project are you creating?' ? 'library' : respond(question)));
+
+    fixtures.push(fixture);
+
+    await expect(runCreate({ directory: destination, version: '0.1.0', prompter, ...noopLifecycle })).resolves.toBe('complete');
+
+    const detected = await detectWorkspace(destination, {}, 'pnpm');
+    const core = JSON.parse(await readFile(join(destination, 'packages/core/package.json'), 'utf8')) as Record<string, unknown>;
+
+    expect(core).toMatchObject({ name: '@kit/core', files: ['dist'] });
+    expect(core).not.toHaveProperty('private');
+    expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({ name: 'kit', private: true });
+    expect(existsSync(join(destination, 'src'))).toBe(false);
+    expect(existsSync(join(destination, 'apps'))).toBe(false);
+    expect(detected.workspace).toMatchObject({ patterns: ['packages/*'], packagePaths: ['packages/core', 'packages/utils'] });
+    expect(await readProjectConfig(destination)).toMatchObject({
+      project: { name: 'kit' },
+      targets: [
+        { path: 'packages/core', kind: 'library', template: 'typescript-library' },
+        { path: 'packages/utils', kind: 'library', template: 'typescript-library' },
+      ],
+    });
   });
 
   it('shows the project layout for a single package too, without the workspace note', async () => {

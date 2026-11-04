@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { composePackageName, createWorkspaceFiles, getPackageDirectory, type WorkspaceLayout } from './workspace.js';
+import { composePackageName, createWorkspaceFiles, createWorkspaceTargets, getPackageDirectory, type WorkspaceLayout } from './workspace.js';
 
 const layout: WorkspaceLayout = {
   appsDirectory: 'apps',
   packagesDirectory: 'packages',
   apps: [{ name: 'acme-web', directory: 'apps/web' }],
+  libraries: [],
+};
+
+const libraryLayout: WorkspaceLayout = {
+  appsDirectory: undefined,
+  packagesDirectory: 'packages',
+  apps: [],
+  libraries: [
+    { name: '@acme/core', directory: 'packages/core' },
+    { name: '@acme/utils', directory: 'packages/utils' },
+  ],
 };
 
 function readJson(files: ReturnType<typeof createWorkspaceFiles>, path: string) {
@@ -73,6 +84,35 @@ describe('createWorkspaceFiles', () => {
     expect(readJson(files, 'package.json')).toMatchObject({ workspaces: ['packages/*'] });
   });
 
+  it('creates private libraries beside apps and lists them in the workspace and README', () => {
+    const files = createWorkspaceFiles({
+      projectName: 'acme',
+      version: '1.2.3',
+      formatter: 'prettier',
+      packageManager: 'pnpm',
+      layout: { ...layout, libraries: [{ name: 'acme-utils', directory: 'packages/utils' }] },
+    });
+    const readme = files.find((file) => file.path === 'README.md')?.content;
+
+    expect(readJson(files, 'packages/utils/package.json')).toMatchObject({ name: 'acme-utils', private: true, exports: expect.any(Object), devDependencies: { typescript: expect.any(String) } });
+    expect(files.map((file) => file.path)).toEqual(expect.arrayContaining(['packages/utils/src/index.ts', 'packages/utils/tsconfig.json', 'packages/utils/README.md']));
+    expect(files.find((file) => file.path === 'pnpm-workspace.yaml')?.content).toBe('packages:\n  - apps/*\n  - packages/*\n');
+    expect(readme).toContain('- `apps/web`: acme-web');
+    expect(readme).toContain('- `packages/utils`: acme-utils');
+  });
+
+  it('creates a workspace of publishable libraries that only covers the libraries directory', () => {
+    const files = createWorkspaceFiles({ projectName: 'acme', version: '1.2.3', formatter: 'prettier', packageManager: 'pnpm', layout: libraryLayout });
+    const core = readJson(files, 'packages/core/package.json');
+
+    expect(files.find((file) => file.path === 'pnpm-workspace.yaml')?.content).toBe('packages:\n  - packages/*\n');
+    expect(core).toMatchObject({ name: '@acme/core', files: ['dist'], exports: expect.any(Object) });
+    expect(core).not.toHaveProperty('private');
+    expect(readJson(files, 'package.json')).toMatchObject({ name: 'acme', private: true });
+    expect(files.some((file) => file.path.startsWith('apps/'))).toBe(false);
+    expect(files.every((file) => file.owner.type === 'project')).toBe(true);
+  });
+
   it('creates each app as a private package that builds on its own', () => {
     const files = createWorkspaceFiles({ projectName: 'acme', version: '1.2.3', formatter: 'prettier', packageManager: 'pnpm', layout });
 
@@ -84,5 +124,15 @@ describe('createWorkspaceFiles', () => {
     });
     expect(files.map((file) => file.path)).toEqual(expect.arrayContaining(['apps/web/tsconfig.json', 'apps/web/src/index.ts', 'apps/web/README.md']));
     expect(files.every((file) => file.owner.type === 'project')).toBe(true);
+  });
+});
+
+describe('createWorkspaceTargets', () => {
+  it('records each app and library with the template it is created from', () => {
+    expect(createWorkspaceTargets({ ...layout, libraries: [{ name: 'acme-utils', directory: 'packages/utils' }] }, 'node-app')).toEqual([
+      { path: 'apps/web', kind: 'app', template: 'node-app' },
+      { path: 'packages/utils', kind: 'library', template: 'typescript-library' },
+    ]);
+    expect(createWorkspaceTargets(libraryLayout, 'typescript-library').map((target) => target.path)).toEqual(['packages/core', 'packages/utils']);
   });
 });

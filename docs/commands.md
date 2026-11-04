@@ -50,7 +50,13 @@ Choosing an app also offers a **Monorepo** option (space to select, Enter to con
 | Apps directory | `apps` | Where apps live |
 | Libraries directory | `packages` | Where libraries live |
 
+After the directories, **Do you want to add a package?** lets you add libraries. Answer yes and type a name (the first has the grey default `core`); `create` shows where it will be created, such as `Added packages/utils (acme-utils)`, then asks whether to add another. Names that are invalid or already used in the workspace are asked for again. Libraries next to an app are private.
+
 The workspace is defined in `pnpm-workspace.yaml` for pnpm and in the `workspaces` field of `package.json` for npm, yarn, and bun. The root `build` script builds every package, and each package is recorded as a target in `jfdevelops.json`. Packages build on their own until you link them with workspace dependencies. Use `add package` to add libraries afterwards. The yarn root build script uses `yarn workspaces foreach`, which needs Yarn 2 or newer.
+
+### Library workspace
+
+Choosing a library asks **Do you want to add a package?** first. No keeps a single package, as before. Yes makes the project a private workspace root with only a libraries directory: you choose the namespace (default `@<project name>`, so `acme` gives `@acme/core`), the libraries directory (default `packages`), and then name each library in the same add-another loop. Libraries in a library workspace are publishable, and each is recorded as a library target in `jfdevelops.json`.
 
 ## `create skills`
 

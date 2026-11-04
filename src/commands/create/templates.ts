@@ -10,6 +10,8 @@ export type ProjectTemplate = {
   kind: ProjectKind;
 };
 
+export const libraryTemplateName = 'typescript-library';
+
 export const projectTemplates = [
   {
     name: 'node-app',
@@ -18,7 +20,7 @@ export const projectTemplates = [
     kind: 'app',
   },
   {
-    name: 'typescript-library',
+    name: libraryTemplateName,
     label: 'TypeScript library',
     description: 'Publishable ESM library with declarations',
     kind: 'library',
@@ -183,9 +185,10 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
  * Files for a library package inside an existing workspace. Formatting, linting, and the CLI
  * dependency stay at the workspace root, so the package only declares what it builds with.
  */
-export function createWorkspacePackageFiles(packageName: string) {
+export function createWorkspacePackageFiles(packageName: string, { isPrivate = false } = {}) {
   const manifest = {
     name: packageName,
+    ...(isPrivate ? { private: true } : {}),
     version: '0.0.0',
     type: 'module',
     files: ['dist'],

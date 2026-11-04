@@ -19,8 +19,8 @@ import { describePlan, resolveConflicts } from '../review.js';
 import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
 import { renderFileTree } from './tree.js';
-import { createWorkspaceFiles } from './workspace.js';
-import { chooseWorkspace } from './workspace-prompt.js';
+import { createWorkspaceFiles, createWorkspaceTargets } from './workspace.js';
+import { chooseAppWorkspace, chooseLibraryWorkspace } from './workspace-prompt.js';
 
 export type CreateOptions = {
   directory?: string;
@@ -103,7 +103,8 @@ async function chooseProject(options: CreateOptions) {
           choices: [{ value: 'monorepo', label: 'Monorepo', hint: 'a workspace with apps and libraries' }],
         })
       : [];
-  const workspace = selectedOptions.includes('monorepo') ? await chooseWorkspace(prompter, projectName) : undefined;
+  const workspace =
+    kind === 'app' ? (selectedOptions.includes('monorepo') ? await chooseAppWorkspace(prompter, projectName) : undefined) : await chooseLibraryWorkspace(prompter, projectName);
   const templates = projectTemplates.filter((template) => template.kind === kind);
   const templateName = await prompter.select({
     message: 'Which template should be used?',
@@ -185,9 +186,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     version,
     name: selection.projectName,
     packageManager: selection.packageManager,
-    targets: workspace
-      ? workspace.apps.map((app) => ({ path: app.directory, kind: 'app' as const, template: selection.templateName }))
-      : [{ path: '.', kind: selection.kind, template: selection.templateName }],
+    targets: workspace ? createWorkspaceTargets(workspace, selection.templateName) : [{ path: '.', kind: selection.kind, template: selection.templateName }],
     addons: [],
     formatter: selection.formatter,
     selectedSkills,

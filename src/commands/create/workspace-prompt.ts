@@ -1,14 +1,22 @@
 import { packageNameSchema, projectPathSchema } from '../../config/schema.js';
-import { askValidText } from '../../prompts/ask-valid.js';
+import { askValidText, type Validated } from '../../prompts/ask-valid.js';
 import type { Prompter } from '../../prompts/prompter.js';
-import { composePackageName, getPackageDirectory, type WorkspaceLayout } from './workspace.js';
+import { composePackageName, getPackageDirectory, type WorkspaceLayout, type WorkspacePackage } from './workspace.js';
 
 const defaultAppName = 'web';
+const defaultLibraryName = 'core';
 
-// A scoped project name such as @acme/site shares its scope; a plain name is its own namespace.
-function getDefaultNamespace(projectName: string) {
+// Names and directories already claimed in the workspace, including the workspace root's own name.
+type Taken = { names: Set<string>; directories: Set<string> };
 
-  return projectName.startsWith('@') ? (projectName.split('/')[0] ?? projectName) : projectName;
+// A scoped project name such as @acme/site shares its scope; otherwise a library is scoped by the project name and an app is prefixed by it.
+function getDefaultNamespace(projectName: string, kind: 'app' | 'library') {
+  if (projectName.startsWith('@')) {
+
+    return projectName.split('/')[0] ?? projectName;
+  }
+
+  return kind === 'library' ? `@${projectName}` : projectName;
 }
 
 function parseNamespace(answer: string) {
@@ -36,34 +44,121 @@ function parseDirectory(answer: string) {
   return { value: directory };
 }
 
-/**
- * Asks how a monorepo is laid out: the namespace for package names, the first app, and the directories that
- * apps and libraries live in. Every default is shown grey, so pressing Enter accepts it.
- */
-export async function chooseWorkspace(prompter: Prompter, projectName: string): Promise<WorkspaceLayout> {
-  const namespace = await askValidText(
-    prompter,
-    { message: 'What namespace should package names use? (type none for bare names)', defaultValue: getDefaultNamespace(projectName) },
-    parseNamespace,
-  );
-  // The package name carries the namespace, but its directory is named after what was typed.
-  const app = await askValidText(prompter, { message: 'What should the app be called?', defaultValue: defaultAppName }, (answer) => {
+// The package name carries the namespace, but its directory is named after what was typed.
+function createPackageValidator(namespace: string, parentDirectory: string, taken: Taken) {
+
+  return (answer: string): Validated<WorkspacePackage> => {
+    if (answer === '') {
+
+      return { error: 'Enter a package name.' };
+    }
+
     const name = composePackageName(namespace, answer);
+    const directory = getPackageDirectory(parentDirectory, answer);
 
     if (!packageNameSchema.safeParse(name).success) {
 
       return { error: `${name} is not a valid package name.` };
     }
 
-    if (name === projectName) {
+    if (taken.names.has(name)) {
 
-      return { error: `${name} is the name of the workspace itself. Choose a different name for the app.` };
+      return { error: `${name} is already used in this workspace. Choose a different name.` };
     }
 
-    return { value: { name, typedName: answer } };
-  });
-  const appsDirectory = await askValidText(prompter, { message: 'Where should apps live?', defaultValue: 'apps' }, parseDirectory);
-  const packagesDirectory = await askValidText(prompter, { message: 'Where should libraries live?', defaultValue: 'packages' }, parseDirectory);
+    if (taken.directories.has(directory)) {
 
-  return { appsDirectory, packagesDirectory, apps: [{ name: app.name, directory: getPackageDirectory(appsDirectory, app.typedName) }] };
+      return { error: `${directory} is already used in this workspace. Choose a different name.` };
+    }
+
+    return { value: { name, directory } };
+  };
+}
+
+function claim(taken: Taken, workspacePackage: WorkspacePackage) {
+  taken.names.add(workspacePackage.name);
+  taken.directories.add(workspacePackage.directory);
+}
+
+function askNamespace(prompter: Prompter, projectName: string, kind: 'app' | 'library') {
+
+  return askValidText(
+    prompter,
+    { message: 'What namespace should package names use? (type none for bare names)', defaultValue: getDefaultNamespace(projectName, kind) },
+    parseNamespace,
+  );
+}
+
+function askDirectory(prompter: Prompter, message: string, defaultValue: string) {
+
+  return askValidText(prompter, { message, defaultValue }, parseDirectory);
+}
+
+/**
+ * Collects libraries one at a time: ask for a name, show where it will be created, then offer another.
+ * Only the first name has a default, so adding more always means typing a name.
+ */
+async function askLibraries(
+  prompter: Prompter,
+  { namespace, directory, taken, hasAgreed }: { namespace: string; directory: string; taken: Taken; hasAgreed: boolean },
+) {
+  const libraries: WorkspacePackage[] = [];
+  let shouldAdd = hasAgreed || (await prompter.confirm({ message: 'Do you want to add a package?', initialValue: false }));
+
+  while (shouldAdd) {
+    const library = await askValidText(
+      prompter,
+      { message: 'What do you want to name this package?', ...(libraries.length === 0 ? { defaultValue: defaultLibraryName } : {}) },
+      createPackageValidator(namespace, directory, taken),
+    );
+
+    libraries.push(library);
+    claim(taken, library);
+    prompter.success(`Added ${library.directory} (${library.name})`);
+    shouldAdd = await prompter.confirm({ message: 'Add another package?', initialValue: false });
+  }
+
+  return libraries;
+}
+
+/**
+ * Asks how an app monorepo is laid out: the namespace for package names, the first app, the directories that apps and
+ * libraries live in, and any libraries to add. Every default is shown grey, so pressing Enter accepts it.
+ */
+export async function chooseAppWorkspace(prompter: Prompter, projectName: string): Promise<WorkspaceLayout> {
+  const taken: Taken = { names: new Set([projectName]), directories: new Set() };
+  const namespace = await askNamespace(prompter, projectName, 'app');
+  // The apps directory is asked after the app, so the app is placed once its directory is known.
+  const appName = await askValidText(prompter, { message: 'What should the app be called?', defaultValue: defaultAppName }, (answer) => {
+    const result = createPackageValidator(namespace, '', taken)(answer);
+
+    return 'value' in result ? { value: { ...result.value, typedName: answer } } : result;
+  });
+  const appsDirectory = await askDirectory(prompter, 'Where should apps live?', 'apps');
+  const packagesDirectory = await askDirectory(prompter, 'Where should libraries live?', 'packages');
+  const app = { name: appName.name, directory: getPackageDirectory(appsDirectory, appName.typedName) };
+
+  claim(taken, app);
+
+  const libraries = await askLibraries(prompter, { namespace, directory: packagesDirectory, taken, hasAgreed: false });
+
+  return { appsDirectory, packagesDirectory, apps: [app], libraries };
+}
+
+/**
+ * Offers to add packages to a library project. Agreeing turns it into a workspace of libraries, so declining keeps the
+ * single package; otherwise it asks for the namespace and libraries directory, then collects the libraries.
+ */
+export async function chooseLibraryWorkspace(prompter: Prompter, projectName: string): Promise<WorkspaceLayout | undefined> {
+  if (!(await prompter.confirm({ message: 'Do you want to add a package? (this makes the project a workspace)', initialValue: false }))) {
+
+    return undefined;
+  }
+
+  const taken: Taken = { names: new Set([projectName]), directories: new Set() };
+  const namespace = await askNamespace(prompter, projectName, 'library');
+  const packagesDirectory = await askDirectory(prompter, 'Where should libraries live?', 'packages');
+  const libraries = await askLibraries(prompter, { namespace, directory: packagesDirectory, taken, hasAgreed: true });
+
+  return { appsDirectory: undefined, packagesDirectory, apps: [], libraries };
 }

@@ -1,13 +1,29 @@
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import type { DesiredFile } from '../../plan/create.js';
-import { createFormattingFiles, createJsonFile, getFormattingManifest, projectOwner, typescriptVersion, appCompiler, appEntry, type FormatterName } from './templates.js';
+import {
+  appCompiler,
+  appEntry,
+  createFormattingFiles,
+  createJsonFile,
+  createWorkspacePackageFiles,
+  getFormattingManifest,
+  libraryTemplateName,
+  projectOwner,
+  typescriptVersion,
+  type FormatterName,
+} from './templates.js';
 
-export type WorkspaceApp = { name: string; directory: string };
+export type WorkspacePackage = { name: string; directory: string };
 
+/**
+ * A workspace with apps has both directories. A workspace of libraries alone has no apps directory, so
+ * its definition only covers the libraries.
+ */
 export type WorkspaceLayout = {
-  appsDirectory: string;
+  appsDirectory: string | undefined;
   packagesDirectory: string;
-  apps: WorkspaceApp[];
+  apps: WorkspacePackage[];
+  libraries: WorkspacePackage[];
 };
 
 type WorkspaceFileOptions = {
@@ -38,8 +54,18 @@ export function getPackageDirectory(parent: string, typedName: string) {
 }
 
 export function getWorkspacePatterns(layout: WorkspaceLayout) {
+  const directories = [layout.appsDirectory, layout.packagesDirectory].filter((directory) => directory !== undefined);
 
-  return [...new Set([`${layout.appsDirectory}/*`, `${layout.packagesDirectory}/*`])];
+  return [...new Set(directories.map((directory) => `${directory}/*`))];
+}
+
+/** One target per package for `jfdevelops.json`, using the template each package kind is created from. */
+export function createWorkspaceTargets(layout: WorkspaceLayout, appTemplateName: string) {
+
+  return [
+    ...layout.apps.map((app) => ({ path: app.directory, kind: 'app' as const, template: appTemplateName })),
+    ...layout.libraries.map((library) => ({ path: library.directory, kind: 'library' as const, template: libraryTemplateName })),
+  ];
 }
 
 // Each command runs the build script of every package except the workspace root itself.
@@ -72,14 +98,14 @@ function createRootFiles({ projectName, version, formatter, packageManager, layo
     scripts: { build: getBuildScript(packageManager, projectName, layout), ...formatting.scripts },
     devDependencies: { '@jfdevelops/cli': version, typescript: typescriptVersion, ...formatting.devDependencies },
   };
-  const appList = layout.apps.map((app) => `- \`${app.directory}\`: ${app.name}`).join('\n');
+  const packageList = [...layout.apps, ...layout.libraries].map((workspacePackage) => `- \`${workspacePackage.directory}\`: ${workspacePackage.name}`).join('\n');
 
   return [
     { path: '.gitignore', owner: projectOwner, content: 'dist/\nnode_modules/\n' },
     {
       path: 'README.md',
       owner: projectOwner,
-      content: `# ${projectName}\n\nWorkspace generated with @jfdevelops/cli.\n\n${appList}\n\nPackages build on their own until you link them with workspace dependencies.\n`,
+      content: `# ${projectName}\n\nWorkspace generated with @jfdevelops/cli.\n\n${packageList}\n\nPackages build on their own until you link them with workspace dependencies.\n`,
     },
     ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
@@ -89,7 +115,7 @@ function createRootFiles({ projectName, version, formatter, packageManager, layo
   ];
 }
 
-function createAppFiles(app: WorkspaceApp): DesiredFile[] {
+function createAppFiles(app: WorkspacePackage): DesiredFile[] {
   const manifest = {
     name: app.name,
     private: true,
@@ -107,11 +133,19 @@ function createAppFiles(app: WorkspaceApp): DesiredFile[] {
   ];
 }
 
+// Libraries next to apps are shared internally, so they are private; a workspace of only libraries is meant to publish them.
+function createLibraryFiles(library: WorkspacePackage, isPrivate: boolean): DesiredFile[] {
+
+  return createWorkspacePackageFiles(library.name, { isPrivate }).map((file) => ({ path: `${library.directory}/${file.path}`, owner: projectOwner, content: file.content }));
+}
+
 /**
  * Files for a workspace root and its packages. Formatting, linting, and the CLI dependency live at the root, so each
  * package only declares what it builds with.
  */
 export function createWorkspaceFiles(options: WorkspaceFileOptions) {
+  const { layout } = options;
+  const hasApps = layout.apps.length > 0;
 
-  return [...createRootFiles(options), ...options.layout.apps.flatMap((app) => createAppFiles(app))];
+  return [...createRootFiles(options), ...layout.apps.flatMap((app) => createAppFiles(app)), ...layout.libraries.flatMap((library) => createLibraryFiles(library, hasApps))];
 }
