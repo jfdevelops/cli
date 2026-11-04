@@ -47,7 +47,7 @@ describe('createProgram', () => {
     const { output, error } = await runProgram([]);
 
     expect(output).toContain('Usage: jfdevelops [options] [command]');
-    expect(output).toMatch(/create \[directory\]\s+Create a new app or library/);
+    expect(output).toMatch(/create \[name\]\s+Create a new app or library/);
     expect(output).toMatch(/init \[directory\]\s+Adopt an existing project/);
     expect(error).toMatchObject({ exitCode: 0 });
   });

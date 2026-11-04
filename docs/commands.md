@@ -4,7 +4,7 @@ Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` onc
 
 | Command | What it does | Needs a terminal |
 | --- | --- | --- |
-| `create [directory]` | Create an app or library from a template | Yes |
+| `create [name]` | Create an app or library from a template | Yes |
 | `create skills` | Register or scaffold skills in a library package and verify they are published | Yes |
 | `init [directory]` | Adopt an existing project | Yes |
 | `add` | Browse and choose an addition | Yes |
@@ -24,9 +24,11 @@ Interactive commands refuse to run without a terminal and exit with code 1, rath
 | 0 | Finished, including when nothing needed to change or you cancelled |
 | 1 | Failed, finished with errors on some files, or was run without a required terminal; `skills --check` also uses 1 when skills need syncing |
 
-## `create [directory]`
+## `create [name]`
 
-Prompts for the package name, destination (when not given), app or library, template, package manager, formatter, and Git initialization. Templates:
+The optional argument is the package name. It is also the destination: `create my-project` creates `./my-project`, and `create @acme/site` names the package `@acme/site` in `./site`. Use `.` to create the project in the current directory, named after that directory. The destination must be empty or not exist yet.
+
+When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, and Git initialization. Templates:
 
 | Template | Kind | Contents |
 | --- | --- | --- |

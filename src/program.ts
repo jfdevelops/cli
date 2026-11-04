@@ -33,7 +33,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
   const create = program
     .command('create')
     .description('Create a new app or library from a reviewed template')
-    .argument('[directory]', 'project destination')
+    .argument('[name]', 'package name, or . to create the project in the current directory')
     .action(async (directory: string | undefined) => {
       if (!dependencies.isInteractive()) {
         program.error('jfdevelops create is interactive; run it in a terminal.');

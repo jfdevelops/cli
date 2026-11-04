@@ -55,17 +55,35 @@ async function assertDestinationAvailable(directory: string) {
   }
 }
 
+// A scoped package name such as @acme/site is a name, not a path: the project lives in ./site.
+function parseProjectArgument(argument: string | undefined): { name?: string; directory?: string; suggestedName?: string } {
+  if (!argument) {
+
+    return {};
+  }
+
+  if (argument.startsWith('@') && packageNameSchema.safeParse(argument).success) {
+
+    return { name: argument, directory: getDefaultDirectory(argument) };
+  }
+
+  // A plain name or "." uses the last path segment, so "." names the project after the current directory.
+  const name = basename(resolve(argument));
+
+  return { ...(packageNameSchema.safeParse(name).success ? { name } : {}), directory: argument, suggestedName: name };
+}
+
 async function chooseProject(options: CreateOptions) {
   const { prompter } = options;
-  const initialName = options.directory ? basename(resolve(options.directory)) : 'my-project';
-  const projectName = (await prompter.text({ message: 'What is the package name?', initialValue: initialName })).trim();
+  const argument = parseProjectArgument(options.directory);
+  const projectName = argument.name ?? (await prompter.text({ message: 'What is the package name?', initialValue: argument.suggestedName ?? 'my-project' })).trim();
   const nameResult = packageNameSchema.safeParse(projectName);
 
   if (!nameResult.success) {
     throw new Error(`Invalid package name: ${projectName}`);
   }
 
-  const directoryInput = options.directory ?? (await prompter.text({ message: 'Where should the project be created?', initialValue: getDefaultDirectory(projectName) }));
+  const directoryInput = argument.directory ?? (await prompter.text({ message: 'Where should the project be created?', initialValue: getDefaultDirectory(projectName) }));
   const directory = resolve(directoryInput);
   const kind = await prompter.select<ProjectKind>({
     message: 'What kind of project are you creating?',

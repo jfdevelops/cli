@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
@@ -57,6 +57,14 @@ async function installTestDependency({ directory, packageName, version }: Parame
   await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
+const noopLifecycle = {
+  installDependency: installTestDependency,
+  formatProject: async () => undefined,
+  verifyProject: async () => undefined,
+  initializeGit: async () => undefined,
+  checkGitIdentity: async () => true,
+};
+
 afterEach(async () => {
   await Promise.all(fixtures.splice(0).map((fixture) => fixture.remove()));
 });
@@ -111,6 +119,70 @@ describe('runCreate', () => {
     const manifestRecord = (await readProjectConfig(destination))?.managedFiles.find((file) => file.path === 'package.json');
 
     expect(manifestRecord?.sha256).toBe(hashContent(await readFile(join(destination, 'package.json'))));
+  });
+
+  it('names the project from the argument without asking for a name or destination', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject());
+
+    fixtures.push(fixture);
+
+    await runCreate({ directory: destination, version: '0.1.0', prompter, ...noopLifecycle });
+
+    expect(transcript.some((line) => line.includes('package name'))).toBe(false);
+    expect(transcript.some((line) => line.includes('Where should the project be created?'))).toBe(false);
+    expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({ name: 'site' });
+  });
+
+  it('creates a scoped package in a directory named after its last segment', async () => {
+    const fixture = await createFixture({});
+    const previousDirectory = process.cwd();
+    const { prompter } = createScriptedPrompter(answerProject());
+
+    fixtures.push(fixture);
+    process.chdir(fixture.root);
+
+    try {
+      await expect(runCreate({ directory: '@acme/site', version: '0.1.0', prompter, ...noopLifecycle })).resolves.toBe('complete');
+    } finally {
+      process.chdir(previousDirectory);
+    }
+
+    expect(JSON.parse(await readFile(join(fixture.root, 'site/package.json'), 'utf8'))).toMatchObject({ name: '@acme/site' });
+    expect(existsSync(join(fixture.root, '@acme'))).toBe(false);
+  });
+
+  it('creates the project in the current directory when given a dot', async () => {
+    const fixture = await createFixture({});
+    const current = join(fixture.root, 'current-site');
+    const previousDirectory = process.cwd();
+    const { prompter } = createScriptedPrompter(answerProject());
+
+    fixtures.push(fixture);
+    await mkdir(current);
+    process.chdir(current);
+
+    try {
+      await expect(runCreate({ directory: '.', version: '0.1.0', prompter, ...noopLifecycle })).resolves.toBe('complete');
+    } finally {
+      process.chdir(previousDirectory);
+    }
+
+    expect(JSON.parse(await readFile(join(current, 'package.json'), 'utf8'))).toMatchObject({ name: 'current-site' });
+  });
+
+  it('asks for a name when the directory name is not a valid package name', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'My Site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'my-site' }));
+
+    fixtures.push(fixture);
+
+    await runCreate({ directory: destination, version: '0.1.0', prompter, ...noopLifecycle });
+
+    expect(transcript.some((line) => line.includes('package name'))).toBe(true);
+    expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({ name: 'my-site' });
   });
 
   it('skips the foundation commit when Git has no author identity', async () => {
