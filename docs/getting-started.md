@@ -17,7 +17,7 @@ Pass `.` instead of a name to create the project in the current directory, named
 3. Formats the generated files, then runs `format:check` and `build`.
 4. Optionally initializes Git on `main` with the commit `chore(init): initialize project`, and adds a pasted remote URL as `origin` without pushing.
 
-The destination must be empty or not exist yet.
+The destination must be empty or not exist yet. Before you confirm, `create` shows the folder tree it will write. For an app you can also choose **Monorepo**, which creates a workspace with the app in `apps/` and room for libraries in `packages/`; see [the `create` command](commands.md#monorepo).
 
 ## Adopt an existing project
 

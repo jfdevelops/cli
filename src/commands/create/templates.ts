@@ -25,13 +25,30 @@ export const projectTemplates = [
   },
 ] as const satisfies ProjectTemplate[];
 
-const projectOwner = { type: 'project' as const };
+export const projectOwner = { type: 'project' as const };
 
 // typescript-eslint, which the style policy runs on, supports TypeScript below 6.1.
-const typescriptVersion = '^6.0.3';
+export const typescriptVersion = '^6.0.3';
 
 // Files rewritten by the CLI or package managers; formatting them would make managed copies look locally edited.
 const unformattedPaths = ['.agents', '.claude/skills', '.cursor/skills', '.github/skills', 'jfdevelops.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'dist'];
+
+export const appCompiler = {
+  compilerOptions: {
+    target: 'ES2024',
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    rootDir: 'src',
+    outDir: 'dist',
+    strict: true,
+    noUncheckedIndexedAccess: true,
+    exactOptionalPropertyTypes: true,
+    skipLibCheck: true,
+  },
+  include: ['src'],
+};
+
+export const appEntry = "console.log('Hello from your jfdevelops app.');\n";
 
 const libraryCompiler = {
   compilerOptions: {
@@ -52,12 +69,12 @@ const libraryCompiler = {
 
 const libraryEntry = 'export function greet(name: string) {\n  return `Hello, ${name}.`;\n}\n';
 
-function createJsonFile(path: string, value: unknown): DesiredFile {
+export function createJsonFile(path: string, value: unknown): DesiredFile {
 
   return { path, owner: projectOwner, content: `${JSON.stringify(value, null, 2)}\n` };
 }
 
-function createCommonFiles(projectName: string, template: ProjectTemplate): DesiredFile[] {
+export function createCommonFiles(projectName: string, template: ProjectTemplate): DesiredFile[] {
 
   return [
     { path: '.gitignore', owner: projectOwner, content: 'dist/\nnode_modules/\n' },
@@ -65,7 +82,7 @@ function createCommonFiles(projectName: string, template: ProjectTemplate): Desi
   ];
 }
 
-function createFormattingFiles(formatter: FormatterName): DesiredFile[] {
+export function createFormattingFiles(formatter: FormatterName): DesiredFile[] {
   const eslintConfig = `import stylistic from '@stylistic/eslint-plugin';
 import typescriptEslint from 'typescript-eslint';
 
@@ -105,7 +122,7 @@ export default [
   return [{ path: 'eslint.config.js', owner: projectOwner, content: eslintConfig }, ...formatterFiles];
 }
 
-function getFormattingManifest(formatter: FormatterName) {
+export function getFormattingManifest(formatter: FormatterName) {
   const formatterCommand = formatter === 'prettier' ? 'prettier' : 'biome format';
 
   return {
@@ -132,27 +149,12 @@ function createAppFiles(projectName: string, template: ProjectTemplate, cliVersi
     scripts: { build: 'tsc', start: 'node dist/index.js', ...formatting.scripts },
     devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': '^22.20.5', typescript: typescriptVersion, ...formatting.devDependencies },
   };
-  const compiler = {
-    compilerOptions: {
-      target: 'ES2024',
-      module: 'NodeNext',
-      moduleResolution: 'NodeNext',
-      rootDir: 'src',
-      outDir: 'dist',
-      strict: true,
-      noUncheckedIndexedAccess: true,
-      exactOptionalPropertyTypes: true,
-      skipLibCheck: true,
-    },
-    include: ['src'],
-  };
-
   return [
     ...createCommonFiles(projectName, template),
     ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
-    createJsonFile('tsconfig.json', compiler),
-    { path: 'src/index.ts', owner: projectOwner, content: "console.log('Hello from your jfdevelops app.');\n" },
+    createJsonFile('tsconfig.json', appCompiler),
+    { path: 'src/index.ts', owner: projectOwner, content: appEntry },
   ];
 }
 

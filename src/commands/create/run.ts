@@ -9,6 +9,7 @@ import { createInstructionEdits } from '../../instructions/edits.js';
 import { applyChangePlan } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
 import { refreshManagedFiles } from '../../plan/refresh.js';
+import { askValidText } from '../../prompts/ask-valid.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
@@ -17,6 +18,9 @@ import { createInitConfig } from '../init/config.js';
 import { describePlan, resolveConflicts } from '../review.js';
 import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
+import { renderFileTree } from './tree.js';
+import { createWorkspaceFiles } from './workspace.js';
+import { chooseWorkspace } from './workspace-prompt.js';
 
 export type CreateOptions = {
   directory?: string;
@@ -92,6 +96,14 @@ async function chooseProject(options: CreateOptions) {
       { value: 'library', label: 'Library', hint: 'published or shared package' },
     ],
   });
+  const selectedOptions =
+    kind === 'app'
+      ? await prompter.multiselect({
+          message: 'Which options should the project use?',
+          choices: [{ value: 'monorepo', label: 'Monorepo', hint: 'a workspace with apps and libraries' }],
+        })
+      : [];
+  const workspace = selectedOptions.includes('monorepo') ? await chooseWorkspace(prompter, projectName) : undefined;
   const templates = projectTemplates.filter((template) => template.kind === kind);
   const templateName = await prompter.select({
     message: 'Which template should be used?',
@@ -112,21 +124,22 @@ async function chooseProject(options: CreateOptions) {
   });
   const shouldInitializeGit = await prompter.confirm({ message: 'Initialize Git and create the foundation commit?', initialValue: true });
 
-  return { projectName, directory, kind, templateName, packageManager, formatter, shouldInitializeGit };
+  return { projectName, directory, kind, workspace, templateName, packageManager, formatter, shouldInitializeGit };
 }
 
 // An empty answer skips the remote; anything else must look like a Git remote URL.
 async function chooseRemoteUrl(prompter: Prompter) {
-  while (true) {
-    const answer = (await prompter.text({ message: 'Git remote URL (optional, press Enter to skip)', placeholder: 'git@github.com:owner/repo.git' })).trim();
 
-    if (answer === '' || isGitRemoteUrl(answer)) {
+  return askValidText(prompter, { message: 'Git remote URL (optional, press Enter to skip)', placeholder: 'git@github.com:owner/repo.git' }, (answer) => {
+    if (answer === '') {
 
-      return answer === '' ? undefined : answer;
+      return { value: undefined };
     }
 
-    prompter.warn(`That is not a Git remote URL: ${answer}. Use an https://, ssh://, or git@host:path URL, or press Enter to skip.`);
-  }
+    return isGitRemoteUrl(answer)
+      ? { value: answer }
+      : { error: `That is not a Git remote URL: ${answer}. Use an https://, ssh://, or git@host:path URL, or press Enter to skip.` };
+  });
 }
 
 async function createProject(options: CreateOptions): Promise<CreateStatus> {
@@ -152,7 +165,10 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
 
   const catalog = await buildSkillCatalog(selection.directory, [], [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
   const selectedSkills = catalog.skills;
-  const templateFiles = createTemplateFiles(selection.projectName, selection.templateName, version, selection.formatter);
+  const { workspace } = selection;
+  const templateFiles = workspace
+    ? createWorkspaceFiles({ projectName: selection.projectName, version, formatter: selection.formatter, packageManager: selection.packageManager, layout: workspace })
+    : createTemplateFiles(selection.projectName, selection.templateName, version, selection.formatter);
   const skillFiles = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill)))).flat();
   const owners = [
     { type: 'project' as const },
@@ -169,7 +185,9 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     version,
     name: selection.projectName,
     packageManager: selection.packageManager,
-    targets: [{ path: '.', kind: selection.kind, template: selection.templateName }],
+    targets: workspace
+      ? workspace.apps.map((app) => ({ path: app.directory, kind: 'app' as const, template: selection.templateName }))
+      : [{ path: '.', kind: selection.kind, template: selection.templateName }],
     addons: [],
     formatter: selection.formatter,
     selectedSkills,
@@ -178,7 +196,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
   const plannedChanges = describePlan(plan, true);
 
-  plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version)}`);
+  plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version, Boolean(workspace))}`);
   plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then format:check and build`);
 
   if (selection.shouldInitializeGit) {
@@ -189,6 +207,10 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     }
   }
 
+  const layoutPaths = [...plan.changes.filter((change) => change.action !== 'unchanged').map((change) => change.path), 'jfdevelops.json'];
+  const layoutNote = renderFileTree(basename(selection.directory), layoutPaths);
+
+  prompter.note(workspace ? `${layoutNote}\n\nPackages build on their own until you link them with workspace dependencies.` : layoutNote, 'Project layout');
   prompter.note(plannedChanges.join('\n'), 'Planned project');
 
   const resolutions = await resolveConflicts(plan, prompter);
@@ -208,6 +230,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
       packageManager: selection.packageManager,
       packageName: '@jfdevelops/cli',
       version,
+      isWorkspaceRoot: Boolean(workspace),
     });
   } catch (error) {
     dependencyError = error;

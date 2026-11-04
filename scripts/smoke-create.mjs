@@ -16,7 +16,17 @@ const combinations = [
   { name: 'biome-library', kind: 'library', template: 'typescript-library', formatter: 'biome', packageManager: 'pnpm', shouldInitializeGit: false },
   { name: 'biome-app', kind: 'app', template: 'node-app', formatter: 'biome', packageManager: 'npm', shouldInitializeGit: false },
   { name: 'prettier-library', kind: 'library', template: 'typescript-library', formatter: 'prettier', packageManager: 'npm', shouldInitializeGit: false },
+  { name: 'prettier-monorepo', kind: 'app', monorepo: true, template: 'node-app', formatter: 'prettier', packageManager: 'pnpm', shouldInitializeGit: true },
+  { name: 'biome-monorepo', kind: 'app', monorepo: true, template: 'node-app', formatter: 'biome', packageManager: 'npm', shouldInitializeGit: false },
 ];
+
+// Workspace layout prompts, answered by accepting their defaults as pressing Enter does.
+const workspaceMessages = new Set([
+  'What namespace should package names use? (type none for bare names)',
+  'What should the app be called?',
+  'Where should apps live?',
+  'Where should libraries live?',
+]);
 
 // The foundation commit needs an identity on machines without Git configuration, such as CI runners.
 for (const role of ['AUTHOR', 'COMMITTER']) {
@@ -37,7 +47,12 @@ function createPrompter(combination, transcript) {
   };
   const record = (kind) => (message) => transcript.push(`${kind}: ${message}`);
 
-  function answer({ message }) {
+  function answer({ message, defaultValue }) {
+    if (combination.monorepo && workspaceMessages.has(message)) {
+
+      return defaultValue;
+    }
+
     assert(message in answers, `Unexpected prompt: ${message}`);
 
     return answers[message];
@@ -54,7 +69,11 @@ function createPrompter(combination, transcript) {
     error: record('error'),
     text: async (question) => answer(question),
     select: async (question) => answer(question),
-    multiselect: async () => [],
+    multiselect: async ({ message }) => {
+      assert.equal(message, 'Which options should the project use?', `Unexpected prompt: ${message}`);
+
+      return combination.monorepo ? ['monorepo'] : [];
+    },
     confirm: async (question) => answer(question),
   };
 }
@@ -68,8 +87,10 @@ try {
     const directory = join(workspace, combination.name);
     const transcript = [];
     // The CLI version under test may not be published yet, so projects install the packed tarball instead.
-    const installDependency = async ({ packageManager }) => {
-      await runCommand(packageManager, packageManager === 'npm' ? ['install', '--save-dev', tarball] : ['add', '--save-dev', tarball], { cwd: directory });
+    const installDependency = async ({ packageManager, isWorkspaceRoot }) => {
+      const flags = packageManager === 'pnpm' && isWorkspaceRoot ? ['--workspace-root'] : [];
+
+      await runCommand(packageManager, packageManager === 'npm' ? ['install', '--save-dev', tarball] : ['add', '--save-dev', ...flags, tarball], { cwd: directory });
     };
 
     console.log(`\n=== ${combination.name}: ${combination.template}, ${combination.formatter}, ${combination.packageManager}`);
@@ -80,6 +101,11 @@ try {
 
     // Formatting must leave every CLI-managed file, including the AGENTS.md block, exactly as recorded.
     await runCommand('node', [join(root, 'dist/cli.js'), 'skills', directory, '--check'], { cwd: workspace, captureOutput: true });
+
+    if (combination.monorepo) {
+      // The root build script must have built the app inside the workspace.
+      await readFile(join(directory, 'apps/web/dist/index.js'), 'utf8');
+    }
 
     if (combination.shouldInitializeGit) {
       const subject = await runCommand('git', ['log', '--format=%s'], { cwd: directory, captureOutput: true });

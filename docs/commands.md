@@ -37,6 +37,21 @@ When the argument gives a valid package name, `create` does not ask for the name
 
 Both include the selected formatter (Prettier or Biome) and an ESLint Stylistic policy that enforces the shared spacing and brace rules through `format` and `format:check` scripts.
 
+Before you confirm, `create` shows the layout it will write as a folder tree (generated agent and skill files are summarized) above the list of changes.
+
+### Monorepo
+
+Choosing an app also offers a **Monorepo** option (space to select, Enter to confirm). It creates a private workspace root named after the project, with the formatter, ESLint policy, and CLI dependency at the root, and the app in its own package. You are asked for:
+
+| Prompt | Default | Result |
+| --- | --- | --- |
+| Namespace | the project name, or the scope of a scoped project name | `acme` gives package names such as `acme-web`; `@acme` gives `@acme/web`; `none` gives bare names |
+| App name | `web` | The package name is the namespace plus this name, and the directory is `apps/<name>` |
+| Apps directory | `apps` | Where apps live |
+| Libraries directory | `packages` | Where libraries live |
+
+The workspace is defined in `pnpm-workspace.yaml` for pnpm and in the `workspaces` field of `package.json` for npm, yarn, and bun. The root `build` script builds every package, and each package is recorded as a target in `jfdevelops.json`. Packages build on their own until you link them with workspace dependencies. Use `add package` to add libraries afterwards. The yarn root build script uses `yarn workspaces foreach`, which needs Yarn 2 or newer.
+
 ## `create skills`
 
 | Option | Description |
