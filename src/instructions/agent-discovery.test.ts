@@ -37,6 +37,11 @@ describe('agent discovery adapters', () => {
         return true;
       }
 
+      if (question.kind === 'text') {
+
+        return question.defaultValue ?? '';
+      }
+
       return question.initialValue ?? (question.kind === 'select' ? (question.choices[0]?.value ?? '') : '');
     });
 

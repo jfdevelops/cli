@@ -54,9 +54,9 @@ describe('createClackPrompter', () => {
     await terminal.type(keys.down, keys.space, keys.enter);
     await expect(multiselect).resolves.toEqual(['app', 'library']);
 
-    const text = terminal.prompter.text({ message: 'Name?', initialValue: 'shop' });
+    const text = terminal.prompter.text({ message: 'Name?' });
 
-    await terminal.type('s', keys.enter);
+    await terminal.type('s', 'h', 'o', 'p', 's', keys.enter);
     await expect(text).resolves.toBe('shops');
 
     const confirm = terminal.prompter.confirm({ message: 'Apply?', initialValue: true });
@@ -64,6 +64,29 @@ describe('createClackPrompter', () => {
     await terminal.type(keys.enter);
     await expect(confirm).resolves.toBe(true);
     expect(terminal.getOutput()).toContain('Kind?');
+  });
+
+  it('shows a default value as a hint that Enter accepts and typing replaces', async () => {
+    const terminal = createTerminal();
+    const accepted = terminal.prompter.text({ message: 'Package name?', defaultValue: 'my-project' });
+
+    await terminal.waitFor('my-project');
+    await terminal.type(keys.enter);
+    await expect(accepted).resolves.toBe('my-project');
+
+    const replaced = terminal.prompter.text({ message: 'Directory?', defaultValue: './my-project' });
+
+    await terminal.type('a', 'p', 'p', keys.enter);
+    await expect(replaced).resolves.toBe('app');
+  });
+
+  it('never returns a placeholder that was only an example', async () => {
+    const terminal = createTerminal();
+    const text = terminal.prompter.text({ message: 'Skill name', placeholder: 'build-forms' });
+
+    await terminal.waitFor('build-forms');
+    await terminal.type(keys.enter);
+    await expect(text).resolves.toBe('');
   });
 
   it.each([

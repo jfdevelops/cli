@@ -51,7 +51,7 @@ function answer(skills: string[], overrides: (question: Question) => ReturnType<
 
     if (question.kind === 'text') {
 
-      return question.initialValue ?? '';
+      return question.defaultValue ?? '';
     }
 
     return question.initialValue ?? question.choices[0]?.value ?? '';

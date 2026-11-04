@@ -5,7 +5,7 @@ import { runCommand } from '../../process/run.js';
 
 export type ProjectVerifier = (options: { directory: string; packageManager: PackageManagerName }) => Promise<void>;
 export type ProjectFormatter = ProjectVerifier;
-export type GitInitializer = (directory: string) => Promise<void>;
+export type GitInitializer = (directory: string, remoteUrl?: string) => Promise<void>;
 export type GitIdentityCheck = () => Promise<boolean>;
 
 const execFileAsync = promisify(execFile);
@@ -32,8 +32,20 @@ export async function hasGitIdentity() {
   }
 }
 
-export async function initializeProjectGit(directory: string) {
+// https://host/path, ssh://host/path, or scp-style user@host:path. Starting with a letter or digit keeps a URL from being read as an option.
+const gitRemoteUrlPattern = /^(?:https?:\/\/[^\s/]+\/\S+|ssh:\/\/[A-Za-z0-9][^\s/]*\/\S+|[A-Za-z0-9_][\w.-]*@[\w.-]+:\S+)$/;
+
+export function isGitRemoteUrl(value: string) {
+
+  return gitRemoteUrlPattern.test(value);
+}
+
+export async function initializeProjectGit(directory: string, remoteUrl?: string) {
   await runCommand('git', ['init', '-b', 'main'], { cwd: directory });
   await runCommand('git', ['add', '--all'], { cwd: directory });
   await runCommand('git', ['commit', '-m', 'chore(init): initialize project'], { cwd: directory });
+
+  if (remoteUrl) {
+    await runCommand('git', ['remote', 'add', 'origin', remoteUrl], { cwd: directory });
+  }
 }

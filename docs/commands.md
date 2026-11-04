@@ -28,7 +28,7 @@ Interactive commands refuse to run without a terminal and exit with code 1, rath
 
 The optional argument is the package name. It is also the destination: `create my-project` creates `./my-project`, and `create @acme/site` names the package `@acme/site` in `./site`. Use `.` to create the project in the current directory, named after that directory. The destination must be empty or not exist yet.
 
-When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, and Git initialization. Templates:
+When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, and Git initialization. When Git is initialized it also offers to add a remote: paste an `https://`, `ssh://`, or `git@host:path` URL, or press Enter to skip. The URL is added as `origin` and nothing is pushed. Templates:
 
 | Template | Kind | Contents |
 | --- | --- | --- |
@@ -36,6 +36,27 @@ When the argument gives a valid package name, `create` does not ask for the name
 | `typescript-library` | Library | Publishable ESM library with type declarations |
 
 Both include the selected formatter (Prettier or Biome) and an ESLint Stylistic policy that enforces the shared spacing and brace rules through `format` and `format:check` scripts.
+
+Before you confirm, `create` shows the layout it will write as a folder tree (generated agent and skill files are summarized) above the list of changes.
+
+### Monorepo
+
+Choosing an app also offers a **Monorepo** option (space to select, Enter to confirm). It creates a private workspace root named after the project, with the formatter, ESLint policy, and CLI dependency at the root, and the app in its own package. You are asked for:
+
+| Prompt | Default | Result |
+| --- | --- | --- |
+| Namespace | the project name, or the scope of a scoped project name | `acme` gives package names such as `acme-web`; `@acme` gives `@acme/web`; `none` gives bare names |
+| App name | `web` | The package name is the namespace plus this name, and the directory is `apps/<name>` |
+| Apps directory | `apps` | Where apps live |
+| Libraries directory | `packages` | Where libraries live |
+
+After the directories, **Do you want to add a package?** lets you add libraries. Answer yes and type a name (the first has the grey default `core`); `create` shows where it will be created, such as `Added packages/utils (acme-utils)`, then asks whether to add another. Names that are invalid or already used in the workspace are asked for again. Libraries next to an app are private.
+
+The workspace is defined in `pnpm-workspace.yaml` for pnpm and in the `workspaces` field of `package.json` for npm, yarn, and bun. The root `build` script builds every package, and each package is recorded as a target in `jfdevelops.json`. Packages build on their own until you link them with workspace dependencies. Use `add package` to add libraries afterwards. The yarn root build script uses `yarn workspaces foreach`, which needs Yarn 2 or newer.
+
+### Library workspace
+
+Choosing a library asks **Do you want to add a package?** first. No keeps a single package, as before. Yes makes the project a private workspace root with only a libraries directory: you choose the namespace (default `@<project name>`, so `acme` gives `@acme/core`), the libraries directory (default `packages`), and then name each library in the same add-another loop. Libraries in a library workspace are publishable, and each is recorded as a library target in `jfdevelops.json`.
 
 ## `create skills`
 
