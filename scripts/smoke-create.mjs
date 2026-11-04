@@ -84,7 +84,12 @@ function createPrompter(combination, transcript) {
     error: record('error'),
     text: async (question) => answer(question),
     select: async (question) => answer(question),
-    multiselect: async ({ message }) => {
+    multiselect: async ({ message, initialValues }) => {
+      if (message === 'Which coding agents should load the skills?') {
+
+        return initialValues ?? [];
+      }
+
       assert.equal(message, 'Which options should the project use?', `Unexpected prompt: ${message}`);
 
       return combination.monorepo ? ['monorepo'] : [];

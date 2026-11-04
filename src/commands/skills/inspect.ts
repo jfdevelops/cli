@@ -3,6 +3,7 @@ import { detectIntegrations } from '../../detect/integration.js';
 import { detectProject } from '../../detect/project.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
 import { createChangePlan, type ChangePlan } from '../../plan/create.js';
+import { getConfiguredAgents } from '../../skills/agents.js';
 import { buildSkillCatalog, type CatalogSkill } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { describeEnabledSkills } from '../../skills/listing.js';
@@ -121,11 +122,12 @@ export async function inspectSkills(directory: string, { removedSkills = [], sel
   });
   const sourceNames = new Set(sources.map((source) => source.name));
   const keptSkills = config.skills.filter((skill) => !sourceNames.has(skill.name) && !removed.has(skill.name));
+  const agents = getConfiguredAgents(config);
   const plan = await createChangePlan({
     projectRoot: project.root,
     managedFiles: config.managedFiles,
-    files: (await Promise.all(sources.map((source) => createSkillInstallFiles(source)))).flat(),
-    edits: createInstructionEdits([...sources, ...describeEnabledSkills(keptSkills, catalog.skills)], project.agentFiles),
+    files: (await Promise.all(sources.map((source) => createSkillInstallFiles(source, agents)))).flat(),
+    edits: createInstructionEdits([...sources, ...describeEnabledSkills(keptSkills, catalog.skills)], project.agentFiles, agents),
     owners: [...sources.map((source) => source.name), ...removedSkills].map((name) => ({ type: 'skill' as const, name })),
   });
   const statuses = config.skills.map((skill) => getSkillStatus(skill, candidatesByName.get(skill.name) ?? [], plan));

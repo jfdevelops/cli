@@ -163,7 +163,7 @@ The current bootstrap sync script regenerates owned files in these two new repos
 
 Use standard `SKILL.md` metadata and agent-neutral instructions. Maintain canonical content once, then generate native discovery adapters or copies as needed. Keep mandatory skills explicitly linked from project instructions; automatic discovery alone does not guarantee required rules are read.
 
-Current project setup supplies `.agents/skills`, `.claude/skills`, `.cursor/skills`, `.github/skills`, and instruction pointers through `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Cursor rules, and Copilot instructions. Other agents can consume the same Markdown through the project index/instructions.
+Current project setup supplies one copy of each skill in `.agents/skills`, stubs in `.claude/skills` for Claude Code when selected, and instruction pointers through `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and Copilot instructions. Other agents can consume the same Markdown through the project index/instructions.
 
 Validate content parity and test actual discovery in the supported agent versions before claiming automatic support. An agent still needs file access and must load the instructions; identical behavior across every agent cannot be guaranteed by packaging alone.
 

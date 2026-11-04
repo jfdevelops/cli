@@ -2,7 +2,8 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { compareStrings } from '../compare.js';
 import type { DesiredFile } from '../plan/create.js';
-import { agentSkillDirectories } from './agent-directories.js';
+import { canonicalSkillDirectory, findAgents, type AgentName } from './agents.js';
+import { frontmatterPattern } from './frontmatter.js';
 
 // Reads every bundled resource; symlinks and special files are rejected rather than followed.
 export async function readSkillFiles(directory: string, prefix = '') {
@@ -25,11 +26,48 @@ export async function readSkillFiles(directory: string, prefix = '') {
   return new Map([...files].sort(([left], [right]) => compareStrings(left, right)));
 }
 
-export async function createSkillInstallFiles(skill: { name: string; directory: string }, directories = agentSkillDirectories) {
+// Keeps the source frontmatter so the agent discovers the stub exactly like the skill it points to.
+function createSkillStub(name: string, skillDocument: Buffer) {
+  const frontmatter = skillDocument.toString('utf8').match(frontmatterPattern)?.[0].trimEnd();
+
+  if (!frontmatter) {
+    throw new Error(`${name}/SKILL.md has no frontmatter`);
+  }
+
+  const path = `${canonicalSkillDirectory}/${name}/SKILL.md`;
+  const body = `Read and follow \`${path}\`, relative to the project root, before this work. Resolve its references relative to that file.`;
+
+  return `${frontmatter}\n\n${body}\n`;
+}
+
+/**
+ * Plans one full copy of the skill in .agents/skills, which AGENTS.md links to, and a stub for each
+ * selected agent that reads skills from its own directory instead. An agent that preprocesses the
+ * skill gets a full copy there instead, since a stub would leave its substitutions and commands unrun.
+ */
+export async function createSkillInstallFiles(skill: { name: string; directory: string }, agentNames: readonly AgentName[]) {
   const resources = await readSkillFiles(skill.directory);
   const owner = { type: 'skill' as const, name: skill.name };
+  const skillDocument = resources.get('SKILL.md');
 
-  return directories.flatMap((directory) =>
-    [...resources].map(([path, content]): DesiredFile => ({ path: `${directory}/${skill.name}/${path}`, owner, content })),
-  );
+  if (!skillDocument) {
+    throw new Error(`${skill.name} has no SKILL.md`);
+  }
+
+  const copies = [...resources].map(([path, content]): DesiredFile => ({ path: `${canonicalSkillDirectory}/${skill.name}/${path}`, owner, content }));
+  const agentFiles = findAgents(agentNames).flatMap(({ stubDirectory, isPreprocessed }): DesiredFile[] => {
+    if (!stubDirectory) {
+
+      return [];
+    }
+
+    if (isPreprocessed?.(skillDocument.toString('utf8'))) {
+
+      return [...resources].map(([path, content]) => ({ path: `${stubDirectory}/${skill.name}/${path}`, owner, content }));
+    }
+
+    return [{ path: `${stubDirectory}/${skill.name}/SKILL.md`, owner, content: createSkillStub(skill.name, skillDocument) }];
+  });
+
+  return [...copies, ...agentFiles];
 }

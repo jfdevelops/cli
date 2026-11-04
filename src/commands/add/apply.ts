@@ -5,6 +5,7 @@ import { writeProjectConfig } from '../../config/write.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
 import { createChangePlan, type FileEdit } from '../../plan/create.js';
 import type { Prompter } from '../../prompts/prompter.js';
+import { getConfiguredAgents } from '../../skills/agents.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { describeEnabledSkills } from '../../skills/listing.js';
@@ -36,12 +37,13 @@ function toEnabledSkill(skill: CatalogSkill) {
 export async function applyAdditions(additions: ProjectAdditions, changes: AdditionChanges, prompter: Prompter): Promise<AddStatus> {
   const { project, config, catalog } = additions;
   const addedSkills = changes.skills ?? [];
+  const agents = getConfiguredAgents(config);
   const plan = await createChangePlan({
     projectRoot: project.root,
     managedFiles: config.managedFiles,
-    files: (await Promise.all(addedSkills.map((skill) => createSkillInstallFiles(skill)))).flat(),
+    files: (await Promise.all(addedSkills.map((skill) => createSkillInstallFiles(skill, agents)))).flat(),
     edits: [
-      ...createInstructionEdits([...describeEnabledSkills(config.skills, catalog.skills), ...addedSkills], project.agentFiles),
+      ...createInstructionEdits([...describeEnabledSkills(config.skills, catalog.skills), ...addedSkills], project.agentFiles, agents),
       ...(changes.edits ?? []),
     ],
     owners: addedSkills.map((skill) => ({ type: 'skill' as const, name: skill.name })),

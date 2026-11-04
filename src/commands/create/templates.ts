@@ -33,7 +33,7 @@ export const projectOwner = { type: 'project' as const };
 export const typescriptVersion = '^6.0.3';
 
 // Files rewritten by the CLI or package managers; formatting them would make managed copies look locally edited.
-const unformattedPaths = ['.agents', '.claude/skills', '.cursor/skills', '.github/skills', 'jfdevelops.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'dist'];
+const unformattedPaths = ['.agents', '.claude/skills', 'jfdevelops.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'dist'];
 
 export const appCompiler = {
   compilerOptions: {

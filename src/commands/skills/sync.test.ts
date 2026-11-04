@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
+import { hashContent } from '../../plan/hash.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question, type Respond } from '../../testing/prompter.js';
 import { createSkillDocument, createSkillPackage } from '../../testing/skill-package.js';
@@ -107,7 +108,7 @@ describe('runSkillsStatus', () => {
     const upgraded = await getStatus(projectRoot);
 
     expect(upgraded.status).toBe('out-of-sync');
-    expect(upgraded.table).toMatch(/build-forms\s+outdated\s+@acme\/forms@2\.0\.0 · 1\.0\.0 → 2\.0\.0, 4 outdated files/);
+    expect(upgraded.table).toMatch(/build-forms\s+outdated\s+@acme\/forms@2\.0\.0 · 1\.0\.0 → 2\.0\.0, 2 outdated files/);
     expect(upgraded.table).toMatch(/jf-git\s+modified\s+.* · 1 locally edited file/);
 
     await rm(join(projectRoot, formsPackage), { recursive: true });
@@ -135,7 +136,8 @@ describe('runSkillsSync', () => {
     const { prompter } = createScriptedPrompter(answer());
 
     await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('complete');
-    expect(await readText(projectRoot, '.cursor/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
+    expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
+    expect(await readText(projectRoot, '.claude/skills/build-forms/SKILL.md')).toContain('description: Use build-forms v2');
     expect(await readText(projectRoot, 'AGENTS.md')).toContain('): Use build-forms v2');
     expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'build-forms')?.source.version).toBe('2.0.0');
     expect((await getStatus(projectRoot)).status).toBe('in-sync');
@@ -143,6 +145,36 @@ describe('runSkillsSync', () => {
     const repeat = createScriptedPrompter(answer());
 
     await expect(runSkillsSync({ directory: projectRoot, prompter: repeat.prompter })).resolves.toBe('unchanged');
+  });
+
+  it('replaces copies from before agents were selectable with stubs and removes unneeded ones', async () => {
+    const projectRoot = await createInitializedProject();
+    const recorded = await readProjectConfig(projectRoot);
+
+    if (!recorded) {
+      throw new Error('init did not record jfdevelops.json');
+    }
+
+    const { agents: _agents, ...config } = recorded;
+    const fullCopy = await readFile(join(projectRoot, '.agents/skills/build-forms/SKILL.md'));
+    const owner = { type: 'skill' as const, name: 'build-forms' };
+    const legacyPaths = ['.claude/skills/build-forms/SKILL.md', '.cursor/skills/build-forms/SKILL.md', '.github/skills/build-forms/SKILL.md'];
+
+    for (const path of legacyPaths) {
+      await mkdir(join(projectRoot, dirname(path)), { recursive: true });
+      await writeFile(join(projectRoot, path), fullCopy);
+    }
+
+    const legacyRecords = legacyPaths.map((path) => ({ path, owner, sha256: hashContent(fullCopy) }));
+    const managedFiles = [...config.managedFiles.filter((file) => !legacyPaths.includes(file.path)), ...legacyRecords];
+
+    await writeFile(join(projectRoot, 'jfdevelops.json'), JSON.stringify({ ...config, managedFiles }));
+    await expect(runSkillsSync({ directory: projectRoot, prompter: createScriptedPrompter(answer()).prompter })).resolves.toBe('complete');
+
+    expect(await readText(projectRoot, '.claude/skills/build-forms/SKILL.md')).toContain('Read and follow `.agents/skills/build-forms/SKILL.md`');
+    expect(existsSync(join(projectRoot, '.cursor/skills/build-forms'))).toBe(false);
+    expect(existsSync(join(projectRoot, '.github/skills/build-forms'))).toBe(false);
+    expect((await readProjectConfig(projectRoot))?.managedFiles.map((file) => file.path)).not.toContain('.cursor/skills/build-forms/SKILL.md');
   });
 
   it('asks before replacing locally edited copies', async () => {

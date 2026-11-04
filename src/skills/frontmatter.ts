@@ -2,7 +2,7 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 import { skillNameSchema } from './metadata.js';
 
-const frontmatterPattern = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+export const frontmatterPattern = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 
 const skillFrontmatterSchema = z.looseObject({
   name: skillNameSchema,
