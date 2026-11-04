@@ -10,7 +10,7 @@ Every command that changes files shows the full plan first and writes nothing un
 npx @jfdevelops/cli create my-project
 ```
 
-`create` asks for the package name, whether it is an app or a library, the template, package manager, formatter (Prettier or Biome), and whether to initialize Git. It then:
+Pass `.` instead of a name to create the project in the current directory, named after it. `create` asks for the package name only when you do not give one, then asks whether it is an app or a library, the template, package manager, formatter (Prettier or Biome), and whether to initialize Git. It then:
 
 1. Writes the template, the required convention skills, `AGENTS.md`, and `jfdevelops.json`.
 2. Installs dependencies, including the exact CLI version as a development dependency so later commands use the same CLI.
