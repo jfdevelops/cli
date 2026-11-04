@@ -1,5 +1,17 @@
 # @jfdevelops/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- 4e70d06: Let `jfdevelops create` add a pasted Git remote URL as `origin` after the foundation commit, validating the URL, listing it in the planned changes, and never pushing.
+- 2109a5e: Offer a Monorepo option when `jfdevelops create` makes an app. It creates a private workspace root with shared formatting and linting, the app in its own package under `apps/`, a configurable namespace for package names, configurable app and library directories, and a root build script for pnpm, npm, yarn, and bun. `create` now also shows the folder layout it will write as a tree before you confirm.
+- 020c83c: Let `jfdevelops create` add packages while it sets up a project. App monorepos and library projects ask "Do you want to add a package?", name each library in a loop that shows where it will be created, and repeat until you are done. Agreeing in a library project creates a workspace of publishable libraries; libraries added to an app monorepo are private. Invalid and duplicate names are asked for again, and every package is recorded as a target in `jfdevelops.json`.
+
+### Patch Changes
+
+- 1526781: Show the default package name, project destination, and `add package` directory as grey hints instead of editable text, so pressing Enter accepts the default and typing replaces it.
+
 ## 0.3.0
 
 ### Minor Changes
