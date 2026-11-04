@@ -101,9 +101,17 @@ describe('chooseAppWorkspace', () => {
     await expect(chooseAppWorkspace(prompter, 'acme')).resolves.toMatchObject({ apps: [{ name: 'acme-web' }], appsDirectory: 'apps' });
     expect(warnings(transcript)).toEqual([
       'warn: Not A Namespace is not a namespace. Use a name like acme or @acme, or type none for bare package names.',
-      'warn: acme-Bad Name is not a valid package name.',
+      'warn: Bad Name is not a valid app name.',
       'warn: ../outside is not a project-relative directory such as apps.',
     ]);
+  });
+
+  // An empty answer is not listed: pressing Enter accepts the default `web`, so only whitespace and similar answers reach validation.
+  it.each(['   ', '.', '..', '../escape', 'two words', '@other/', 'Upper'])('asks again when the app name is %j', async (invalid) => {
+    const { prompter, transcript } = createScriptedPrompter(answerWith({ [appMessage]: [invalid, 'web'] }));
+
+    await expect(chooseAppWorkspace(prompter, 'acme')).resolves.toMatchObject({ apps: [{ name: 'acme-web', directory: 'apps/web' }] });
+    expect(warnings(transcript)).toHaveLength(1);
   });
 
   it('asks again for an app named like the workspace itself', async () => {

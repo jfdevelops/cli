@@ -9,6 +9,9 @@ const defaultLibraryName = 'core';
 // Names and directories already claimed in the workspace, including the workspace root's own name.
 type Taken = { names: Set<string>; directories: Set<string> };
 
+// The last segment of a typed name becomes a directory, so it cannot be empty, `.`, `..`, or contain spaces.
+const directoryNamePattern = /^[a-z0-9][a-z0-9._-]*$/;
+
 // A scoped project name such as @acme/site shares its scope; otherwise a library is scoped by the project name and an app is prefixed by it.
 function getDefaultNamespace(projectName: string, kind: 'app' | 'library') {
   if (projectName.startsWith('@')) {
@@ -44,13 +47,13 @@ function parseDirectory(answer: string) {
   return { value: directory };
 }
 
-// The package name carries the namespace, but its directory is named after what was typed.
-function createPackageValidator(namespace: string, parentDirectory: string, taken: Taken) {
+// The package name carries the namespace, but its directory is named after what was typed, so that must be a plain name.
+function createPackageValidator(namespace: string, parentDirectory: string, taken: Taken, label: 'app' | 'package') {
 
   return (answer: string): Validated<WorkspacePackage> => {
-    if (answer === '') {
+    if (!directoryNamePattern.test(answer.split('/').at(-1) ?? '')) {
 
-      return { error: 'Enter a package name.' };
+      return { error: answer === '' ? `Enter ${label === 'app' ? 'an app' : 'a package'} name.` : `${answer} is not a valid ${label} name.` };
     }
 
     const name = composePackageName(namespace, answer);
@@ -109,7 +112,7 @@ async function askLibraries(
     const library = await askValidText(
       prompter,
       { message: 'What do you want to name this package?', ...(libraries.length === 0 ? { defaultValue: defaultLibraryName } : {}) },
-      createPackageValidator(namespace, directory, taken),
+      createPackageValidator(namespace, directory, taken, 'package'),
     );
 
     libraries.push(library);
@@ -130,7 +133,7 @@ export async function chooseAppWorkspace(prompter: Prompter, projectName: string
   const namespace = await askNamespace(prompter, projectName, 'app');
   // The apps directory is asked after the app, so the app is placed once its directory is known.
   const appName = await askValidText(prompter, { message: 'What should the app be called?', defaultValue: defaultAppName }, (answer) => {
-    const result = createPackageValidator(namespace, '', taken)(answer);
+    const result = createPackageValidator(namespace, '', taken, 'app')(answer);
 
     return 'value' in result ? { value: { ...result.value, typedName: answer } } : result;
   });

@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
+import { runAdd } from '../add/run.js';
 import { detectWorkspace } from '../../detect/workspace.js';
 import { hashContent } from '../../plan/hash.js';
 import { createFixture } from '../../testing/fixture.js';
@@ -318,7 +319,7 @@ describe('runCreate', () => {
     expect(existsSync(join(destination, 'apps/web/src/index.ts'))).toBe(true);
     expect(existsSync(join(destination, 'src'))).toBe(false);
     expect(existsSync(join(destination, '.agents/skills/jf-git/SKILL.md'))).toBe(true);
-    expect(detected.workspace).toMatchObject({ source: 'pnpm-workspace.yaml', patterns: ['apps/*', 'packages/*'], packagePaths: ['apps/web'] });
+    expect(detected.workspace).toMatchObject({ source: 'pnpm-workspace.yaml', patterns: ['packages/*', 'apps/*'], packagePaths: ['apps/web'] });
     expect(await readProjectConfig(destination)).toMatchObject({
       project: { name: 'site', packageManager: 'pnpm' },
       targets: [{ path: 'apps/web', kind: 'app', template: 'node-app' }],
@@ -384,6 +385,33 @@ describe('runCreate', () => {
         { path: 'packages/utils', kind: 'library', template: 'typescript-library' },
       ],
     });
+  });
+
+  it.each([
+    ['the default libraries directory', undefined, 'packages/utils'],
+    ['a custom libraries directory', 'libs', 'libs/utils'],
+  ])('lets add package default to %s of a created monorepo', async (_name, librariesDirectory, expected) => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const respond = answerProject({ multiselect: ['monorepo'] });
+    const { prompter } = createScriptedPrompter((question) => (librariesDirectory && question.message === 'Where should libraries live?' ? librariesDirectory : respond(question)));
+    const defaults: Array<string | undefined> = [];
+    const { prompter: addPrompter } = createScriptedPrompter((question) => {
+      if (question.kind === 'text') {
+        defaults.push(question.defaultValue);
+
+        return question.defaultValue ?? '';
+      }
+
+      return question.kind === 'confirm' ? false : '';
+    });
+
+    fixtures.push(fixture);
+
+    await expect(runCreate({ directory: destination, version: '0.1.0', prompter, ...noopLifecycle })).resolves.toBe('complete');
+    await runAdd({ directory: destination, kind: 'package', name: 'utils', prompter: addPrompter });
+
+    expect(defaults).toEqual([expected]);
   });
 
   it('shows the project layout for a single package too, without the workspace note', async () => {
