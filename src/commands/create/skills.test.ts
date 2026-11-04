@@ -47,7 +47,7 @@ function answer(overrides: (question: Question) => ReturnType<Respond> | undefin
 
     if (question.kind === 'text') {
 
-      return question.initialValue ?? '';
+      return question.defaultValue ?? '';
     }
 
     return question.initialValue ?? question.choices[0]?.value ?? '';

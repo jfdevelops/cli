@@ -22,7 +22,7 @@ function answerProject(overrides: Partial<Record<Question['kind'], string | bool
 
     if (question.kind === 'text') {
 
-      return question.initialValue ?? 'my-project';
+      return question.defaultValue ?? 'my-project';
     }
 
     if (question.kind === 'confirm') {

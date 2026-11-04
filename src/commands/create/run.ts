@@ -76,14 +76,14 @@ function parseProjectArgument(argument: string | undefined): { name?: string; di
 async function chooseProject(options: CreateOptions) {
   const { prompter } = options;
   const argument = parseProjectArgument(options.directory);
-  const projectName = argument.name ?? (await prompter.text({ message: 'What is the package name?', initialValue: argument.suggestedName ?? 'my-project' })).trim();
+  const projectName = argument.name ?? (await prompter.text({ message: 'What is the package name?', defaultValue: argument.suggestedName ?? 'my-project' })).trim();
   const nameResult = packageNameSchema.safeParse(projectName);
 
   if (!nameResult.success) {
     throw new Error(`Invalid package name: ${projectName}`);
   }
 
-  const directoryInput = argument.directory ?? (await prompter.text({ message: 'Where should the project be created?', initialValue: getDefaultDirectory(projectName) }));
+  const directoryInput = argument.directory ?? (await prompter.text({ message: 'Where should the project be created?', defaultValue: getDefaultDirectory(projectName) }));
   const directory = resolve(directoryInput);
   const kind = await prompter.select<ProjectKind>({
     message: 'What kind of project are you creating?',

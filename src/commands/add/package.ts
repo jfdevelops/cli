@@ -111,7 +111,7 @@ export async function addPackage(additions: ProjectAdditions, name: string, prom
 
   const answer = await prompter.text({
     message: 'Where should the package be created?',
-    initialValue: getDefaultDirectory(workspace, name.split('/').at(-1) ?? name),
+    defaultValue: getDefaultDirectory(workspace, name.split('/').at(-1) ?? name),
   });
   const directory = normalizePattern(answer);
 

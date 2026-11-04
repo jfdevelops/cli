@@ -1,7 +1,7 @@
 import { PromptCancelledError, type Choice, type Prompter } from '../prompts/prompter.js';
 
 export type Question =
-  | { kind: 'text'; message: string; initialValue: string | undefined; placeholder: string | undefined }
+  | { kind: 'text'; message: string; defaultValue: string | undefined; placeholder: string | undefined }
   | { kind: 'select'; message: string; choices: Choice<string>[]; initialValue: string | undefined }
   | { kind: 'multiselect'; message: string; choices: Choice<string>[]; initialValues: string[] | undefined }
   | { kind: 'confirm'; message: string; initialValue: boolean | undefined };
@@ -44,7 +44,8 @@ export function createScriptedPrompter(respond: Respond) {
     warn: record('warn'),
     success: record('success'),
     error: record('error'),
-    text: async ({ message, initialValue, placeholder }) => ask({ kind: 'text', message, initialValue, placeholder }) as string,
+    // Like a real terminal, an empty answer accepts the default value.
+    text: async ({ message, defaultValue, placeholder }) => (ask({ kind: 'text', message, defaultValue, placeholder }) as string) || (defaultValue ?? ''),
     select: async <Value extends string>({ message, choices, initialValue }: { message: string; choices: Choice<Value>[]; initialValue?: Value }) =>
       ask({ kind: 'select', message, choices, initialValue }) as Value,
     multiselect: async <Value extends string>({ message, choices, initialValues }: { message: string; choices: Choice<Value>[]; initialValues?: Value[] }) =>

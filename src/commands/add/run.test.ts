@@ -36,7 +36,7 @@ function answer(overrides: (question: Question) => ReturnType<Respond> | undefin
 
     if (question.kind === 'text') {
 
-      return question.initialValue ?? '';
+      return question.defaultValue ?? '';
     }
 
     return question.initialValue ?? question.choices[0]?.value ?? '';
@@ -341,7 +341,7 @@ describe('add package', () => {
       { kind: 'package', name: 'utils' },
       answer((question) => {
         if (question.kind === 'text') {
-          defaults.push(question.initialValue);
+          defaults.push(question.defaultValue);
         }
 
         return question.kind === 'confirm' ? false : undefined;
