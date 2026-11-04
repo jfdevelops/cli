@@ -37,13 +37,14 @@ export function getPackageDirectory(parent: string, typedName: string) {
   return `${parent}/${typedName.split('/').at(-1) ?? typedName}`;
 }
 
+// `add package` creates libraries in the directory of the first pattern, so the libraries directory comes first.
 export function getWorkspacePatterns(layout: WorkspaceLayout) {
 
-  return [...new Set([`${layout.appsDirectory}/*`, `${layout.packagesDirectory}/*`])];
+  return [...new Set([`${layout.packagesDirectory}/*`, `${layout.appsDirectory}/*`])];
 }
 
-// Each command runs the build script of every package except the workspace root itself.
-function getBuildScript(packageManager: PackageManagerName, rootName: string, layout: WorkspaceLayout) {
+// Each command runs the build script of every registered workspace package, including ones added later, except the root itself.
+function getBuildScript(packageManager: PackageManagerName, rootName: string) {
   switch (packageManager) {
     case 'pnpm':
 
@@ -56,7 +57,7 @@ function getBuildScript(packageManager: PackageManagerName, rootName: string, la
       return `yarn workspaces foreach --all --exclude ${rootName} run build`;
     case 'bun':
 
-      return `bun run ${getWorkspacePatterns(layout).map((pattern) => `--filter './${pattern}'`).join(' ')} build`;
+      return "bun run --filter '*' build";
   }
 }
 
@@ -69,7 +70,7 @@ function createRootFiles({ projectName, version, formatter, packageManager, layo
     version: '0.0.0',
     type: 'module',
     ...(packageManager === 'pnpm' ? {} : { workspaces: patterns }),
-    scripts: { build: getBuildScript(packageManager, projectName, layout), ...formatting.scripts },
+    scripts: { build: getBuildScript(packageManager, projectName), ...formatting.scripts },
     devDependencies: { '@jfdevelops/cli': version, typescript: typescriptVersion, ...formatting.devDependencies },
   };
   const appList = layout.apps.map((app) => `- \`${app.directory}\`: ${app.name}`).join('\n');

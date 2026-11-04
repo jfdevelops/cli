@@ -5,6 +5,9 @@ import { composePackageName, getPackageDirectory, type WorkspaceLayout } from '.
 
 const defaultAppName = 'web';
 
+// The last segment of a typed name becomes a directory, so it cannot be empty, `.`, `..`, or contain spaces.
+const directoryNamePattern = /^[a-z0-9][a-z0-9._-]*$/;
+
 // A scoped project name such as @acme/site shares its scope; a plain name is its own namespace.
 function getDefaultNamespace(projectName: string) {
 
@@ -46,8 +49,13 @@ export async function chooseWorkspace(prompter: Prompter, projectName: string): 
     { message: 'What namespace should package names use? (type none for bare names)', defaultValue: getDefaultNamespace(projectName) },
     parseNamespace,
   );
-  // The package name carries the namespace, but its directory is named after what was typed.
+  // The package name carries the namespace, but its directory is named after what was typed, so that must be a plain name.
   const app = await askValidText(prompter, { message: 'What should the app be called?', defaultValue: defaultAppName }, (answer) => {
+    if (!directoryNamePattern.test(answer.split('/').at(-1) ?? '')) {
+
+      return { error: answer === '' ? 'Enter an app name.' : `${answer} is not a valid app name.` };
+    }
+
     const name = composePackageName(namespace, answer);
 
     if (!packageNameSchema.safeParse(name).success) {

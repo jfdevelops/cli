@@ -38,7 +38,7 @@ describe('createWorkspaceFiles', () => {
     const files = createWorkspaceFiles({ projectName: 'acme', version: '1.2.3', formatter: 'prettier', packageManager: 'pnpm', layout });
     const root = readJson(files, 'package.json');
 
-    expect(files.find((file) => file.path === 'pnpm-workspace.yaml')?.content).toBe('packages:\n  - apps/*\n  - packages/*\n');
+    expect(files.find((file) => file.path === 'pnpm-workspace.yaml')?.content).toBe('packages:\n  - packages/*\n  - apps/*\n');
     expect(root).toMatchObject({
       name: 'acme',
       private: true,
@@ -52,11 +52,11 @@ describe('createWorkspaceFiles', () => {
   it.each([
     ['npm', 'npm run build --workspaces --if-present'],
     ['yarn', 'yarn workspaces foreach --all --exclude acme run build'],
-    ['bun', "bun run --filter './apps/*' --filter './packages/*' build"],
+    ['bun', "bun run --filter '*' build"],
   ] as const)('declares %s workspaces in package.json', (packageManager, build) => {
     const files = createWorkspaceFiles({ projectName: 'acme', version: '1.2.3', formatter: 'biome', packageManager, layout });
 
-    expect(readJson(files, 'package.json')).toMatchObject({ workspaces: ['apps/*', 'packages/*'], scripts: { build } });
+    expect(readJson(files, 'package.json')).toMatchObject({ workspaces: ['packages/*', 'apps/*'], scripts: { build } });
     expect(files.some((file) => file.path === 'pnpm-workspace.yaml')).toBe(false);
     expect(files.some((file) => file.path === 'biome.json')).toBe(true);
   });
