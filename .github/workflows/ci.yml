@@ -16,6 +16,9 @@ jobs:
   check:
     name: Check (${{ matrix.os }}, Node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
+    # macOS runners are often unavailable, so macOS results are informational and capped at 5 minutes.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 5 || 360 }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +56,9 @@ jobs:
   smoke:
     name: Smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # macOS runners are often unavailable, so macOS results are informational and capped at 5 minutes.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 5 || 360 }}
     strategy:
       fail-fast: false
       matrix:
