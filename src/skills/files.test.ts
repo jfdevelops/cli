@@ -68,6 +68,7 @@ describe('createSkillInstallFiles', () => {
     ['skill directory variables', 'Run `${CLAUDE_SKILL_DIR}/scripts/render.sh`.\n'],
     ['inline command injection', '- Diff: !`git diff`\n'],
     ['block command injection', '```!\ngit status --short\n```\n'],
+    ['indented block command injection', '- Status:\n\n  ```!\n  git status --short\n  ```\n'],
   ])('copies a skill using %s in full for Claude Code instead of a stub', async (_name, body) => {
     const fixture = await createFixture({
       'skill/SKILL.md': `${createSkillDocument('jf-git')}\n${body}`,

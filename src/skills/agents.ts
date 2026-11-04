@@ -25,7 +25,8 @@ export const canonicalSkillDirectory = '.agents/skills';
 
 // Claude Code substitutes arguments and ${CLAUDE_*} variables and runs !`command` injections in the SKILL.md it discovers.
 const claudeSubstitutionPattern = /\$(?:ARGUMENTS|\d|\{CLAUDE_[A-Z_]+\})/;
-const claudeCommandPattern = /(?:^|\s)!`|^```!/m;
+// Fences may be indented, such as inside a list item.
+const claudeCommandPattern = /(?:^|\s)!`|^[ \t]*```!/m;
 
 function usesClaudePreprocessing(skillDocument: string) {
   const frontmatter = skillDocument.match(frontmatterPattern)?.[1] ?? '';
