@@ -62,6 +62,42 @@ describe('createSkillInstallFiles', () => {
     expect(stub).toContain('Read and follow `.agents/skills/jf-git/SKILL.md`');
   });
 
+  it.each([
+    ['arguments', 'Fix issue $ARGUMENTS.\n'],
+    ['positional arguments', 'Compare $0 with $1.\n'],
+    ['skill directory variables', 'Run `${CLAUDE_SKILL_DIR}/scripts/render.sh`.\n'],
+    ['inline command injection', '- Diff: !`git diff`\n'],
+    ['block command injection', '```!\ngit status --short\n```\n'],
+  ])('copies a skill using %s in full for Claude Code instead of a stub', async (_name, body) => {
+    const fixture = await createFixture({
+      'skill/SKILL.md': `${createSkillDocument('jf-git')}\n${body}`,
+      'skill/scripts/render.sh': 'echo render\n',
+    });
+
+    fixtures.push(fixture);
+
+    const files = await createSkillInstallFiles({ name: 'jf-git', directory: join(fixture.root, 'skill') }, ['claude-code']);
+
+    expect(files.map((file) => file.path)).toEqual([
+      '.agents/skills/jf-git/SKILL.md',
+      '.agents/skills/jf-git/scripts/render.sh',
+      '.claude/skills/jf-git/SKILL.md',
+      '.claude/skills/jf-git/scripts/render.sh',
+    ]);
+    expect(files[2]?.content).toEqual(files[0]?.content);
+  });
+
+  it('copies a skill declaring named arguments in full for Claude Code', async () => {
+    const fixture = await createFixture({ 'skill/SKILL.md': '---\nname: jf-git\ndescription: Use jf-git\narguments: [branch]\n---\n\nUse the branch.\n' });
+
+    fixtures.push(fixture);
+
+    const files = await createSkillInstallFiles({ name: 'jf-git', directory: join(fixture.root, 'skill') }, ['claude-code']);
+
+    expect(files.map((file) => file.path)).toEqual(['.agents/skills/jf-git/SKILL.md', '.claude/skills/jf-git/SKILL.md']);
+    expect(files[1]?.content).toEqual(files[0]?.content);
+  });
+
   it('plans only the full copy when no selected agent needs a stub', async () => {
     const root = await createSkill();
     const files = await createSkillInstallFiles({ name: 'jf-git', directory: join(root, 'skill') }, ['cursor', 'copilot']);

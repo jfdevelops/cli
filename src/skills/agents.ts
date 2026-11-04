@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { frontmatterPattern } from './frontmatter.js';
 
 export const agentNames = ['claude-code', 'codex', 'cursor', 'copilot'] as const;
 
@@ -11,6 +12,8 @@ type Agent = {
   hint: string;
   // Skill directory the agent reads instead of .agents/skills; it receives a stub per skill.
   stubDirectory?: string;
+  // Whether the agent preprocesses the skill's SKILL.md itself, which only works on a full copy in stubDirectory.
+  isPreprocessed?: (skillDocument: string) => boolean;
   // Instruction file the agent reads instead of AGENTS.md; it receives a pointer to AGENTS.md.
   instructionFile?: string;
   // Paths whose presence shows the project already uses the agent.
@@ -20,12 +23,23 @@ type Agent = {
 // Every skill has exactly one full copy here, which AGENTS.md links to.
 export const canonicalSkillDirectory = '.agents/skills';
 
+// Claude Code substitutes arguments and ${CLAUDE_*} variables and runs !`command` injections in the SKILL.md it discovers.
+const claudeSubstitutionPattern = /\$(?:ARGUMENTS|\d|\{CLAUDE_[A-Z_]+\})/;
+const claudeCommandPattern = /(?:^|\s)!`|^```!/m;
+
+function usesClaudePreprocessing(skillDocument: string) {
+  const frontmatter = skillDocument.match(frontmatterPattern)?.[1] ?? '';
+
+  return claudeSubstitutionPattern.test(skillDocument) || claudeCommandPattern.test(skillDocument) || /^arguments\s*:/m.test(frontmatter);
+}
+
 export const agents: Agent[] = [
   {
     name: 'claude-code',
     label: 'Claude Code',
     hint: 'gets a stub per skill in .claude/skills and a CLAUDE.md pointer',
     stubDirectory: '.claude/skills',
+    isPreprocessed: usesClaudePreprocessing,
     instructionFile: 'CLAUDE.md',
     detectionPaths: ['CLAUDE.md', '.claude'],
   },

@@ -10,7 +10,7 @@ In a workspace, each package only sees skills from its own dependencies plus tho
 
 ## Where skills are installed
 
-Each skill has one full copy in `.agents/skills/<name>/`, which `AGENTS.md` links to. Codex, Cursor, and GitHub Copilot read that directory natively. Claude Code reads only `.claude/skills`, so when it is selected each skill also gets a stub `.claude/skills/<name>/SKILL.md` with the same frontmatter, which tells Claude Code to read the copy in `.agents/skills`. The stub only changes when the skill's frontmatter does.
+Each skill has one full copy in `.agents/skills/<name>/`, which `AGENTS.md` links to. Codex, Cursor, and GitHub Copilot read that directory natively. Claude Code reads only `.claude/skills`, so when it is selected each skill also gets a stub `.claude/skills/<name>/SKILL.md` with the same frontmatter, which tells Claude Code to read the copy in `.agents/skills`. The stub only changes when the skill's frontmatter does. A skill that uses Claude Code's own preprocessing (`$ARGUMENTS`, positional or named arguments, `${CLAUDE_*}` variables, or `` !`command` `` injection) gets a full copy in `.claude/skills` instead, because Claude Code only expands those in the `SKILL.md` it discovers.
 
 `init` and `create` ask which agents to set up and record the answer in `jfdevelops.json`. Deselecting an agent with `init` removes its stubs. Projects set up before agents were selectable had full copies in `.claude/skills`, `.cursor/skills`, and `.github/skills`; the next `skills sync` replaces the Claude Code copies with stubs and removes the others, asking first about any you edited.
 

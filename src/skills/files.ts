@@ -42,7 +42,8 @@ function createSkillStub(name: string, skillDocument: Buffer) {
 
 /**
  * Plans one full copy of the skill in .agents/skills, which AGENTS.md links to, and a stub for each
- * selected agent that reads skills from its own directory instead.
+ * selected agent that reads skills from its own directory instead. An agent that preprocesses the
+ * skill gets a full copy there instead, since a stub would leave its substitutions and commands unrun.
  */
 export async function createSkillInstallFiles(skill: { name: string; directory: string }, agentNames: readonly AgentName[]) {
   const resources = await readSkillFiles(skill.directory);
@@ -54,9 +55,19 @@ export async function createSkillInstallFiles(skill: { name: string; directory: 
   }
 
   const copies = [...resources].map(([path, content]): DesiredFile => ({ path: `${canonicalSkillDirectory}/${skill.name}/${path}`, owner, content }));
-  const stubs = findAgents(agentNames).flatMap((agent): DesiredFile[] =>
-    agent.stubDirectory ? [{ path: `${agent.stubDirectory}/${skill.name}/SKILL.md`, owner, content: createSkillStub(skill.name, skillDocument) }] : [],
-  );
+  const agentFiles = findAgents(agentNames).flatMap(({ stubDirectory, isPreprocessed }): DesiredFile[] => {
+    if (!stubDirectory) {
 
-  return [...copies, ...stubs];
+      return [];
+    }
+
+    if (isPreprocessed?.(skillDocument.toString('utf8'))) {
+
+      return [...resources].map(([path, content]) => ({ path: `${stubDirectory}/${skill.name}/${path}`, owner, content }));
+    }
+
+    return [{ path: `${stubDirectory}/${skill.name}/SKILL.md`, owner, content: createSkillStub(skill.name, skillDocument) }];
+  });
+
+  return [...copies, ...agentFiles];
 }
