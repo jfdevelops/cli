@@ -10,9 +10,18 @@ import { runCreate, type CreateOptions } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
 
-function answerProject(overrides: Partial<Record<Question['kind'], string | boolean>> = {}) {
+const remotePrompt = 'Git remote URL (optional, press Enter to skip)';
+
+// `remoteUrls` are answers to the remote prompt in order; it skips the remote once they run out.
+function answerProject(overrides: Partial<Record<Question['kind'], string | boolean>> = {}, remoteUrls: string[] = []) {
+  const remaining = [...remoteUrls];
 
   return (question: Question) => {
+    if (question.message === remotePrompt) {
+
+      return remaining.shift() ?? '';
+    }
+
     const override = overrides[question.kind];
 
     if (override !== undefined) {
@@ -183,6 +192,86 @@ describe('runCreate', () => {
 
     expect(transcript.some((line) => line.includes('package name'))).toBe(true);
     expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({ name: 'my-site' });
+  });
+
+  it('adds the pasted remote as origin after the foundation commit and lists it in the plan', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const calls: Array<[string, string | undefined]> = [];
+    const { prompter, transcript } = createScriptedPrompter(answerProject({}, ['git@github.com:acme/site.git']));
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        ...noopLifecycle,
+        initializeGit: async (directory, remoteUrl) => {
+          calls.push([directory, remoteUrl]);
+        },
+      }),
+    ).resolves.toBe('complete');
+
+    expect(calls).toEqual([[destination, 'git@github.com:acme/site.git']]);
+    expect(transcript.find((line) => line.startsWith('note [Planned project]'))).toContain('Add Git remote origin: git@github.com:acme/site.git');
+  });
+
+  it('adds no remote when the prompt is skipped', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const calls: Array<string | undefined> = [];
+    const { prompter, transcript } = createScriptedPrompter(answerProject());
+
+    fixtures.push(fixture);
+
+    await runCreate({
+      directory: destination,
+      version: '0.1.0',
+      prompter,
+      ...noopLifecycle,
+      initializeGit: async (_directory, remoteUrl) => {
+        calls.push(remoteUrl);
+      },
+    });
+
+    expect(calls).toEqual([undefined]);
+    expect(transcript.find((line) => line.startsWith('note [Planned project]'))).not.toContain('remote');
+  });
+
+  it('asks again when the remote is not a Git URL', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const calls: Array<string | undefined> = [];
+    const { prompter, transcript } = createScriptedPrompter(answerProject({}, ['not a url', 'https://github.com/acme/site.git']));
+
+    fixtures.push(fixture);
+
+    await runCreate({
+      directory: destination,
+      version: '0.1.0',
+      prompter,
+      ...noopLifecycle,
+      initializeGit: async (_directory, remoteUrl) => {
+        calls.push(remoteUrl);
+      },
+    });
+
+    expect(transcript.some((line) => line.startsWith('warn: That is not a Git remote URL: not a url.'))).toBe(true);
+    expect(calls).toEqual(['https://github.com/acme/site.git']);
+  });
+
+  it('does not ask for a remote when Git is not initialized', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject());
+
+    fixtures.push(fixture);
+
+    await runCreate({ directory: destination, version: '0.1.0', prompter, ...noopLifecycle, checkGitIdentity: async () => false });
+
+    expect(transcript.some((line) => line.includes(remotePrompt))).toBe(false);
   });
 
   it('skips the foundation commit when Git has no author identity', async () => {

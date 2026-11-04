@@ -15,7 +15,7 @@ import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { describePlan, resolveConflicts } from '../review.js';
-import { formatCreatedProject, hasGitIdentity, initializeProjectGit, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
+import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
 
 export type CreateOptions = {
@@ -115,6 +115,20 @@ async function chooseProject(options: CreateOptions) {
   return { projectName, directory, kind, templateName, packageManager, formatter, shouldInitializeGit };
 }
 
+// An empty answer skips the remote; anything else must look like a Git remote URL.
+async function chooseRemoteUrl(prompter: Prompter) {
+  while (true) {
+    const answer = (await prompter.text({ message: 'Git remote URL (optional, press Enter to skip)', placeholder: 'git@github.com:owner/repo.git' })).trim();
+
+    if (answer === '' || isGitRemoteUrl(answer)) {
+
+      return answer === '' ? undefined : answer;
+    }
+
+    prompter.warn(`That is not a Git remote URL: ${answer}. Use an https://, ssh://, or git@host:path URL, or press Enter to skip.`);
+  }
+}
+
 async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const {
     version,
@@ -131,6 +145,8 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     prompter.warn('Git has no author name and email configured, so the foundation commit will be skipped. Set user.name and user.email, then commit the project yourself.');
     selection.shouldInitializeGit = false;
   }
+
+  const remoteUrl = selection.shouldInitializeGit ? await chooseRemoteUrl(prompter) : undefined;
 
   await assertDestinationAvailable(selection.directory);
 
@@ -167,6 +183,10 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
 
   if (selection.shouldInitializeGit) {
     plannedChanges.push('Initialize Git on main and create chore(init): initialize project');
+
+    if (remoteUrl) {
+      plannedChanges.push(`Add Git remote origin: ${remoteUrl}`);
+    }
   }
 
   prompter.note(plannedChanges.join('\n'), 'Planned project');
@@ -215,7 +235,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
       await verifyProject({ directory: selection.directory, packageManager: selection.packageManager });
 
       if (selection.shouldInitializeGit) {
-        await initializeGit(selection.directory);
+        await initializeGit(selection.directory, remoteUrl);
       }
     } catch (error) {
       verificationError = error;

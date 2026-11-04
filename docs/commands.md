@@ -28,7 +28,7 @@ Interactive commands refuse to run without a terminal and exit with code 1, rath
 
 The optional argument is the package name. It is also the destination: `create my-project` creates `./my-project`, and `create @acme/site` names the package `@acme/site` in `./site`. Use `.` to create the project in the current directory, named after that directory. The destination must be empty or not exist yet.
 
-When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, and Git initialization. Templates:
+When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, and Git initialization. When Git is initialized it also offers to add a remote: paste an `https://`, `ssh://`, or `git@host:path` URL, or press Enter to skip. The URL is added as `origin` and nothing is pushed. Templates:
 
 | Template | Kind | Contents |
 | --- | --- | --- |

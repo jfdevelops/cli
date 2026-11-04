@@ -12,7 +12,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const workspace = await mkdtemp(join(tmpdir(), 'jfdevelops-smoke-'));
 const combinations = [
-  { name: 'prettier-app', kind: 'app', template: 'node-app', formatter: 'prettier', packageManager: 'pnpm', shouldInitializeGit: true },
+  { name: 'prettier-app', kind: 'app', template: 'node-app', formatter: 'prettier', packageManager: 'pnpm', shouldInitializeGit: true, remoteUrl: 'git@github.com:jfdevelops/prettier-app.git' },
   { name: 'biome-library', kind: 'library', template: 'typescript-library', formatter: 'biome', packageManager: 'pnpm', shouldInitializeGit: false },
   { name: 'biome-app', kind: 'app', template: 'node-app', formatter: 'biome', packageManager: 'npm', shouldInitializeGit: false },
   { name: 'prettier-library', kind: 'library', template: 'typescript-library', formatter: 'prettier', packageManager: 'npm', shouldInitializeGit: false },
@@ -32,6 +32,7 @@ function createPrompter(combination, transcript) {
     'Which package manager should be used?': combination.packageManager,
     'Which formatter should be used?': combination.formatter,
     'Initialize Git and create the foundation commit?': combination.shouldInitializeGit,
+    'Git remote URL (optional, press Enter to skip)': combination.remoteUrl ?? '',
     'Create this project?': true,
   };
   const record = (kind) => (message) => transcript.push(`${kind}: ${message}`);
@@ -86,6 +87,13 @@ try {
 
       assert.equal(subject.trim(), 'chore(init): initialize project');
       assert.equal(branch.trim(), 'main');
+
+      const remotes = await runCommand('git', ['remote', '-v'], { cwd: directory, captureOutput: true });
+
+      assert.deepEqual(
+        remotes.trim().split(/\r?\n/).filter(Boolean),
+        combination.remoteUrl ? [`origin\t${combination.remoteUrl} (fetch)`, `origin\t${combination.remoteUrl} (push)`] : [],
+      );
     }
   }
 
