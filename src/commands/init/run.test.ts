@@ -28,6 +28,8 @@ async function createProject(files: FixtureFiles) {
   return fixture.root;
 }
 
+const agentsPrompt = 'Which coding agents should load the skills?';
+
 // Accepts defaults, selecting the given skill names, unless a handler overrides the question.
 function answer(skills: string[], overrides: (question: Question) => ReturnType<Respond> | undefined = () => undefined): Respond {
 
@@ -37,6 +39,11 @@ function answer(skills: string[], overrides: (question: Question) => ReturnType<
     if (override !== undefined) {
 
       return override;
+    }
+
+    if (question.kind === 'multiselect' && question.message === agentsPrompt) {
+
+      return question.initialValues ?? [];
     }
 
     if (question.kind === 'multiselect') {
@@ -87,10 +94,16 @@ describe('runInit', () => {
 
     await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
 
-    for (const directory of ['.agents/skills', '.claude/skills', '.cursor/skills', '.github/skills']) {
+    for (const directory of ['.agents/skills', '.claude/skills']) {
       expect(existsSync(join(projectRoot, directory, 'build-forms/SKILL.md'))).toBe(true);
       expect(existsSync(join(projectRoot, directory, 'validate-forms'))).toBe(false);
     }
+
+    for (const directory of ['.cursor/skills', '.github/skills']) {
+      expect(existsSync(join(projectRoot, directory))).toBe(false);
+    }
+
+    expect(await readText(projectRoot, '.claude/skills/build-forms/SKILL.md')).toContain('Read and follow `.agents/skills/build-forms/SKILL.md`');
 
     expect(await readText(projectRoot, 'AGENTS.md')).toContain('- [build-forms](.agents/skills/build-forms/SKILL.md): Use build-forms');
     expect(await readText(projectRoot, 'CLAUDE.md')).toMatch(/^# Claude\n\nProject notes\.\n\n<!-- jfdevelops:start -->\n\nRead AGENTS\.md/);
@@ -101,6 +114,7 @@ describe('runInit', () => {
       generator: { package: '@jfdevelops/cli', version: '0.1.0' },
       project: { name: 'shop', packageManager: 'pnpm' },
       targets: [{ path: '.', kind: 'app', options: {} }],
+      agents: ['claude-code'],
       skills: [
         { name: 'build-forms', required: false, source: { package: '@acme/forms', version: '1.0.0', path: './skills/build-forms' } },
         { name: 'jf-coding-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
@@ -111,8 +125,6 @@ describe('runInit', () => {
     expect(config?.managedFiles.filter((file) => file.owner.type === 'skill' && file.owner.name === 'build-forms').map((file) => file.path)).toEqual([
       '.agents/skills/build-forms/SKILL.md',
       '.claude/skills/build-forms/SKILL.md',
-      '.cursor/skills/build-forms/SKILL.md',
-      '.github/skills/build-forms/SKILL.md',
     ]);
     expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0' } });
     expect(transcript).toContain('outro: Project initialized.');
@@ -139,6 +151,22 @@ describe('runInit', () => {
       'jf-naming-conventions',
       'validate-forms',
     ]);
+  });
+
+  it('preselects detected agents and removes stubs of an agent deselected later', async () => {
+    const projectRoot = await createProject(createProjectFiles({ '.cursorrules': 'rules\n' }));
+    const { prompter, transcript } = createScriptedPrompter(answer(['build-forms']));
+
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter })).resolves.toBe('complete');
+    expect((await readProjectConfig(projectRoot))?.agents).toEqual(['claude-code', 'cursor']);
+    expect(transcript).toContain(`? ${agentsPrompt}`);
+
+    const withoutClaude = createScriptedPrompter(answer(['build-forms'], (question) => (question.message === agentsPrompt ? ['cursor'] : undefined)));
+
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: withoutClaude.prompter })).resolves.toBe('complete');
+    expect(existsSync(join(projectRoot, '.claude/skills/build-forms'))).toBe(false);
+    expect(existsSync(join(projectRoot, '.agents/skills/build-forms/SKILL.md'))).toBe(true);
+    expect((await readProjectConfig(projectRoot))?.agents).toEqual(['cursor']);
   });
 
   it('writes nothing when cancelled or declined', async () => {

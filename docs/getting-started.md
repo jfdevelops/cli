@@ -25,18 +25,18 @@ The destination must be empty or not exist yet. Before you confirm, `create` sho
 npx @jfdevelops/cli init
 ```
 
-`init` detects the package manager, workspace packages, whether each is an app or a library, supported integrations (Convex, Portless, individual TanStack and jfdevelops libraries), and existing agent instructions. Detected integrations are offered, never enabled automatically. You then choose skills from your installed dependencies; the three shared conventions (`jf-naming-conventions`, `jf-coding-conventions`, `jf-git`) are always installed.
+`init` detects the package manager, workspace packages, whether each is an app or a library, supported integrations (Convex, Portless, individual TanStack and jfdevelops libraries), and existing agent instructions. Detected integrations are offered, never enabled automatically. You then choose skills from your installed dependencies; the three shared conventions (`jf-naming-conventions`, `jf-coding-conventions`, `jf-git`) are always installed. Last, you choose which coding agents should load them (Claude Code, Codex, Cursor, GitHub Copilot); agents whose files the project already has are preselected.
 
-`init` never replaces your files. It installs skill copies, adds a marked block to `AGENTS.md` (creating it if needed), adds a short pointer block to existing `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md`, and records the setup in `jfdevelops.json`. Existing files that would be overwritten are shown as conflicts with a diff, and you decide each one. Run it again at any time; with nothing to change it reports that the project is already up to date.
+`init` never replaces your files. It installs one copy of each skill in `.agents/skills`, adds a marked block to `AGENTS.md` (creating it if needed), adds a short pointer block to `CLAUDE.md` when Claude Code is selected and to existing `GEMINI.md` and `.github/copilot-instructions.md`, and records the setup in `jfdevelops.json`. Existing files that would be overwritten are shown as conflicts with a diff, and you decide each one. Run it again at any time; with nothing to change it reports that the project is already up to date.
 
 ## What ends up in your project
 
 | Path | Purpose | Owner |
 | --- | --- | --- |
-| `.agents/skills/<name>/` | Skill copies read through `AGENTS.md` | CLI |
-| `.claude/skills/`, `.cursor/skills/`, `.github/skills/` | The same copies where those agents discover skills natively | CLI |
+| `.agents/skills/<name>/` | The only full copy of each skill, read natively by Codex, Cursor, and GitHub Copilot and linked from `AGENTS.md` | CLI |
+| `.claude/skills/<name>/SKILL.md` | A stub per skill when Claude Code is selected: the same frontmatter, pointing to the copy in `.agents/skills` | CLI |
 | `AGENTS.md` | Your instructions plus a marked block listing enabled skills | You, except the marked block |
-| `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` | A pointer block to `AGENTS.md`, added only when the file exists | You, except the marked block |
+| `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` | A pointer block to `AGENTS.md`, added when the file exists (and to `CLAUDE.md` whenever Claude Code is selected) | You, except the marked block |
 | `jfdevelops.json` | The recorded setup; see [configuration](configuration.md) | CLI |
 
 Commit all of these. Skill copies are files in your repository so every collaborator and agent sees the same instructions without any global setup.

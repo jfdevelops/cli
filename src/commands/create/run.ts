@@ -11,10 +11,12 @@ import { createChangePlan } from '../../plan/create.js';
 import { refreshManagedFiles } from '../../plan/refresh.js';
 import { askValidText } from '../../prompts/ask-valid.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
+import { agentNames } from '../../skills/agents.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
+import { chooseAgents } from '../agents.js';
 import { describePlan, resolveConflicts } from '../review.js';
 import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
@@ -123,9 +125,10 @@ async function chooseProject(options: CreateOptions) {
     ],
     initialValue: 'prettier',
   });
+  const agents = await chooseAgents(prompter, [...agentNames]);
   const shouldInitializeGit = await prompter.confirm({ message: 'Initialize Git and create the foundation commit?', initialValue: true });
 
-  return { projectName, directory, kind, workspace, templateName, packageManager, formatter, shouldInitializeGit };
+  return { projectName, directory, kind, workspace, templateName, packageManager, formatter, agents, shouldInitializeGit };
 }
 
 // An empty answer skips the remote; anything else must look like a Git remote URL.
@@ -170,7 +173,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const templateFiles = workspace
     ? createWorkspaceFiles({ projectName: selection.projectName, version, formatter: selection.formatter, packageManager: selection.packageManager, layout: workspace })
     : createTemplateFiles(selection.projectName, selection.templateName, version, selection.formatter);
-  const skillFiles = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill)))).flat();
+  const skillFiles = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill, selection.agents)))).flat();
   const owners = [
     { type: 'project' as const },
     ...selectedSkills.map((skill) => ({ type: 'skill' as const, name: skill.name })),
@@ -178,7 +181,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const plan = await createChangePlan({
     projectRoot: selection.directory,
     files: [...templateFiles, ...skillFiles],
-    edits: createInstructionEdits(selectedSkills, []),
+    edits: createInstructionEdits(selectedSkills, [], selection.agents),
     owners,
   });
   const configOptions = {
@@ -188,6 +191,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     packageManager: selection.packageManager,
     targets: workspace ? createWorkspaceTargets(workspace, selection.templateName) : [{ path: '.', kind: selection.kind, template: selection.templateName }],
     addons: [],
+    agents: selection.agents,
     formatter: selection.formatter,
     selectedSkills,
     missingSourceSkills: [],

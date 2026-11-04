@@ -53,6 +53,11 @@ async function createInitializedProject(files: FixtureFiles, enabledSkills: stri
         return question.choices.filter((choice) => enabledSkills.includes(choice.label)).map((choice) => choice.value);
       }
 
+      if (question.kind === 'multiselect' && question.message === 'Which coding agents should load the skills?') {
+
+        return question.initialValues ?? [];
+      }
+
       return question.kind === 'multiselect' ? [] : undefined;
     }),
   );
@@ -383,8 +388,8 @@ describe('failed skill additions', () => {
       { kind: 'skill', name: 'validate-forms' },
       answer((question) => {
         if (question.message === 'Apply these changes?') {
-          mkdirSync(join(projectRoot, '.cursor/skills/validate-forms'), { recursive: true });
-          writeFileSync(join(projectRoot, '.cursor/skills/validate-forms/SKILL.md'), 'mine\n');
+          mkdirSync(join(projectRoot, '.claude/skills/validate-forms'), { recursive: true });
+          writeFileSync(join(projectRoot, '.claude/skills/validate-forms/SKILL.md'), 'mine\n');
 
           return true;
         }

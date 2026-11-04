@@ -8,9 +8,11 @@ import { createInstructionEdits } from '../../instructions/edits.js';
 import { applyChangePlan } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
+import { agentNames, detectAgents } from '../../skills/agents.js';
 import { buildSkillCatalog, type SkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
+import { chooseAgents } from '../agents.js';
 import { describePlan, reportApplyResult, resolveConflicts } from '../review.js';
 import { createInitConfig } from './config.js';
 import { confirmIntegrations, filterAddonSkills } from './integrations.js';
@@ -83,9 +85,11 @@ async function adoptProject({ directory, version, prompter, installDependency = 
   }
 
   const selectedSkills = await selectSkills(catalog, enabledSkills, prompter);
+  const detectedAgents = detectAgents(project.root);
+  const agents = await chooseAgents(prompter, project.config?.agents ?? (detectedAgents.length > 0 ? detectedAgents : [...agentNames]));
   const missingSourceNames = new Set(missingSourceSkills.map((skill) => skill.name));
   const ownerNames = new Set([...selectedSkills, ...enabledSkills].map((skill) => skill.name).filter((name) => !missingSourceNames.has(name)));
-  const files = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill)))).flat();
+  const files = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill, agents)))).flat();
   const plan = await createChangePlan({
     projectRoot: project.root,
     managedFiles: project.config?.managedFiles ?? [],
@@ -96,10 +100,11 @@ async function adoptProject({ directory, version, prompter, installDependency = 
         ...missingSourceSkills.map((skill) => ({ name: skill.name, description: `${skill.source.package} is not installed` })),
       ],
       project.agentFiles,
+      agents,
     ),
     owners: [...ownerNames].map((name) => ({ type: 'skill' as const, name })),
   });
-  const configOptions = { existing: project.config, version, name: project.name, packageManager, targets, addons, selectedSkills, missingSourceSkills };
+  const configOptions = { existing: project.config, version, name: project.name, packageManager, targets, addons, agents, selectedSkills, missingSourceSkills };
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
   const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(project.config);
   const needsCliDependency = !hasCliDependency(project);

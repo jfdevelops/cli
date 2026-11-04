@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { agentNames } from '../skills/agents.js';
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/, 'Expected a lowercase hex SHA-256 digest');
 const nameSchema = z.string().max(64).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Expected a lowercase kebab-case name');
@@ -78,6 +79,8 @@ export const projectConfigSchema = z
     formatter: z.string().min(1).optional(),
     targets: z.array(targetSchema).default([]),
     addons: z.array(addonSchema).default([]),
+    // Coding agents that load the skills; absent in projects set up before agents were selectable.
+    agents: z.array(z.enum(agentNames)).optional(),
     skills: z.array(skillSchema).default([]),
     managedFiles: z.array(managedFileSchema).default([]),
   })
@@ -85,6 +88,7 @@ export const projectConfigSchema = z
     const uniqueKeys = [
       ['targets', config.targets.map((target) => target.path)],
       ['addons', config.addons.map((addon) => addon.name)],
+      ['agents', config.agents ?? []],
       ['skills', config.skills.map((skill) => skill.name)],
       ['managedFiles', config.managedFiles.map((file) => file.path)],
     ] as const;

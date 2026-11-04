@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import { compareStrings } from '../../compare.js';
 import type { ManagedFile, ProjectConfig, projectConfigSchema } from '../../config/schema.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
+import type { AgentName } from '../../skills/agents.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
 import type { ConfirmedTarget } from './targets.js';
 
@@ -12,6 +13,7 @@ type InitConfigOptions = {
   packageManager: PackageManagerName;
   targets: ConfirmedTarget[];
   addons: ProjectConfig['addons'];
+  agents: AgentName[];
   formatter?: string;
   selectedSkills: CatalogSkill[];
   missingSourceSkills: ProjectConfig['skills'];
@@ -52,6 +54,7 @@ export function createInitConfig(options: InitConfigOptions): z.input<typeof pro
     ...(options.formatter ?? existing?.formatter ? { formatter: options.formatter ?? existing?.formatter } : {}),
     targets,
     addons: options.addons,
+    agents: options.agents,
     skills: [...selectedSkills, ...retainedSkills].sort((left, right) => compareStrings(left.name, right.name)),
     managedFiles,
   };

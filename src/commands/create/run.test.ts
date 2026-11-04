@@ -12,6 +12,8 @@ import { runCreate, type CreateOptions } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
 
+const agentsPrompt = 'Which coding agents should load the skills?';
+
 const remotePrompt = 'Git remote URL (optional, press Enter to skip)';
 
 const addPackageMessages = ['Do you want to add a package?', 'Do you want to add a package? (this makes the project a workspace)'];
@@ -36,6 +38,11 @@ function answerProject(overrides: Partial<Record<Question['kind'], string | bool
     if (question.message === 'What do you want to name this package?') {
 
       return names.shift() ?? '';
+    }
+
+    if (question.kind === 'multiselect' && question.message === agentsPrompt) {
+
+      return question.initialValues ?? [];
     }
 
     const override = overrides[question.kind];

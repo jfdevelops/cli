@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runInit } from '../commands/init/run.js';
 import { readProjectConfig } from '../config/read.js';
-import { hashContent } from '../plan/hash.js';
-import { agentSkillDirectories } from '../skills/agent-directories.js';
+import { canonicalSkillDirectory } from '../skills/agents.js';
 import { readSkillFiles } from '../skills/files.js';
 import { parseSkillFrontmatter } from '../skills/frontmatter.js';
 import { createFixture } from '../testing/fixture.js';
@@ -17,9 +16,9 @@ afterEach(async () => {
   await Promise.all(fixtures.splice(0).map((fixture) => fixture.remove()));
 });
 
-// Native discovery itself depends on each agent; this verifies the files every supported adapter reads.
+// Native discovery itself depends on each agent; this verifies the files each selected agent reads.
 describe('agent discovery adapters', () => {
-  it('give every agent identical, discoverable skills reachable from its instructions', async () => {
+  it('give each detected agent one discoverable copy, stubs where needed, and instruction pointers', async () => {
     const fixture = await createFixture({
       'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1' },
       'CLAUDE.md': '# Claude\n',
@@ -27,6 +26,11 @@ describe('agent discovery adapters', () => {
       '.github/copilot-instructions.md': '# Copilot\n',
     });
     const { prompter, transcript } = createScriptedPrompter((question) => {
+      if (question.kind === 'multiselect' && question.message === 'Which coding agents should load the skills?') {
+
+        return question.initialValues ?? [];
+      }
+
       if (question.kind === 'multiselect') {
 
         return [];
@@ -56,15 +60,21 @@ describe('agent discovery adapters', () => {
 
     expect(skillNames).toEqual(['jf-coding-conventions', 'jf-git', 'jf-naming-conventions']);
 
+    expect(config?.agents).toEqual(['claude-code', 'copilot']);
+
     for (const name of skillNames) {
-      const [reference, ...others] = await Promise.all(agentSkillDirectories.map((directory) => readSkillFiles(join(fixture.root, directory, name))));
-      const referenceHashes = [...(reference ?? new Map()).entries()].map(([path, content]) => [path, hashContent(content)]);
+      const copy = await readSkillFiles(join(fixture.root, canonicalSkillDirectory, name));
+      const copyFrontmatter = parseSkillFrontmatter(copy.get('SKILL.md')?.toString('utf8') ?? '');
+      const stub = await readFile(join(fixture.root, '.claude/skills', name, 'SKILL.md'), 'utf8');
 
-      for (const copy of others) {
-        expect([...copy.entries()].map(([path, content]) => [path, hashContent(content)])).toEqual(referenceHashes);
-      }
+      expect(copyFrontmatter.name).toBe(name);
+      expect(parseSkillFrontmatter(stub)).toEqual(copyFrontmatter);
+      expect(stub).toContain(`\`${canonicalSkillDirectory}/${name}/SKILL.md\``);
+      expect(existsSync(join(fixture.root, '.claude/skills', name, 'references'))).toBe(false);
+    }
 
-      expect(parseSkillFrontmatter(reference?.get('SKILL.md')?.toString('utf8') ?? '').name).toBe(name);
+    for (const directory of ['.cursor/skills', '.github/skills']) {
+      expect(existsSync(join(fixture.root, directory))).toBe(false);
     }
 
     const instructions = await readFile(join(fixture.root, 'AGENTS.md'), 'utf8');

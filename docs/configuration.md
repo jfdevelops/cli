@@ -10,6 +10,7 @@
   "formatter": "prettier",
   "targets": [{ "path": ".", "kind": "app", "template": "node-app", "options": {} }],
   "addons": [{ "name": "convex", "options": {} }],
+  "agents": ["claude-code", "codex"],
   "skills": [
     {
       "name": "jf-git",
@@ -31,6 +32,7 @@
 | `formatter` | Formatter chosen by `create`, when there is one |
 | `targets` | Each app or library in the project, by project-relative path, with its template and options |
 | `addons` | Adopted integrations |
+| `agents` | Coding agents that load the skills: `claude-code`, `codex`, `cursor`, or `copilot`. A file without it, written before agents were selectable, is treated as selecting all of them |
 | `skills` | Enabled skills, whether each is required, and the exact package, version, and path they came from |
 | `managedFiles` | Every file the CLI owns, its owner (`project`, a skill, or an addon), and the SHA-256 it last wrote |
 
