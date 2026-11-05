@@ -20,6 +20,7 @@ Every command that changes files previews the full plan, shows a diff for anythi
 | `add addon <name>` | Adopt or install Convex, Portless, or an individual TanStack or jfdevelops library |
 | `add package <name>` | Scaffold a TypeScript library in the workspace |
 | `skills` / `skills sync` | Check enabled skills against installed versions and update them |
+| `skills outdated [directory] [--check]` | Compare installed skills with `jfdevelops/skills` on `main` without changing files |
 | `create skills` | Register or scaffold the skills a library publishes and verify its tarball |
 
 ## Documentation

@@ -61,3 +61,13 @@ Kept conflicts stay recorded under their previous state, so the next `skills` ru
 ## Instruction files
 
 The CLI only edits text between `<!-- jfdevelops:start -->` and `<!-- jfdevelops:end -->`. Everything else in `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` is yours and preserved, including line endings. A file with only one of the two markers stops the command until it is fixed. Generated projects keep Prettier and Biome away from skill copies, `jfdevelops.json`, and lockfiles, which the CLI and package managers rewrite.
+
+## Comparing with upstream main
+
+Run `jfdevelops skills outdated [directory]` to compare the project's installed `.agents/skills` copies with the registered skills in `https://github.com/jfdevelops/skills` on `main`. This command works without `jfdevelops.json` or installed npm dependencies. It compares skills by name and checks every bundled file, including references, missing resources, and extra local resources. Skills absent from the upstream catalog are reported as not compared.
+
+The command requires Git and network access. It clones a temporary snapshot, reports its commit, and removes the snapshot afterward. It makes no changes to project files. An `outdated` result means content differs; differences may include local edits or unreleased changes on `main`, so it does not imply a published package upgrade is available.
+
+Use `jfdevelops skills outdated --check` in CI: it exits with code 1 for differences or a failed comparison and code 0 otherwise. Without `--check`, differences are informational; failures still exit with code 1. With no installed skills, it reports that fact without accessing the network.
+
+`jfdevelops skills` and `jfdevelops skills sync` continue to compare against installed package versions. Sync does not download or apply upstream `main`.

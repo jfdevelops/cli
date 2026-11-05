@@ -4,11 +4,13 @@ import type { PackedFileLister } from './authoring/packed-files.js';
 import { runCreate } from './commands/create/run.js';
 import { runCreateSkills } from './commands/create/skills.js';
 import { runInit } from './commands/init/run.js';
+import { runSkillsOutdated } from './commands/skills/outdated.js';
 import { runSkillsStatus } from './commands/skills/status.js';
 import { runSkillsSync } from './commands/skills/sync.js';
 import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
 import { createClackPrompter } from './prompts/clack.js';
 import type { Prompter } from './prompts/prompter.js';
+import type { UpstreamSkills } from './skills/upstream.js';
 
 export type ProgramDependencies = {
   createPrompter: () => Prompter;
@@ -16,6 +18,7 @@ export type ProgramDependencies = {
   installDependency?: DependencyInstaller;
   installPackage?: PackageInstaller;
   listPackedFiles?: PackedFileLister;
+  loadUpstreamSkills?: () => Promise<UpstreamSkills>;
 };
 
 const defaultDependencies: ProgramDependencies = {
@@ -155,6 +158,23 @@ export function createProgram(version: string, dependencies = defaultDependencie
       const status = await runSkillsStatus({ directory, prompter: dependencies.createPrompter() });
 
       if (status === 'failed' || (options.check && status === 'out-of-sync')) {
+        process.exitCode = 1;
+      }
+    });
+
+  skills
+    .command('outdated')
+    .description('Compare installed skills with jfdevelops/skills on main without changing files')
+    .argument('[directory]', 'project directory', '.')
+    .option('--check', 'exit with code 1 when skills differ from upstream main')
+    .action(async (directory: string, _options: { check?: boolean }, command: Command) => {
+      const status = await runSkillsOutdated({
+        directory,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.loadUpstreamSkills ? { loadUpstream: dependencies.loadUpstreamSkills } : {}),
+      });
+
+      if (status === 'failed' || (command.optsWithGlobals<{ check?: boolean }>().check && status === 'outdated')) {
         process.exitCode = 1;
       }
     });
