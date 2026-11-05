@@ -203,3 +203,42 @@ describe('skills command', () => {
     expect(error).toMatchObject({ exitCode: 1 });
   });
 });
+
+describe('skills outdated command', () => {
+  it.each([
+    [[], 'different', undefined],
+    [['--check'], 'different', 1],
+    [['--check'], 'current', undefined],
+  ])('supports non-interactive comparisons with %j and %s content', async (flags, content, exitCode) => {
+    const fixture = await createFixture({ '.agents/skills/jf-git/SKILL.md': content });
+
+    fixtures.push(fixture);
+
+    const { prompter, transcript } = createScriptedPrompter(() => { throw new Error('Must not prompt'); });
+    const { error } = await runProgram(['skills', 'outdated', fixture.root, ...flags], {
+      createPrompter: () => prompter,
+      isInteractive: () => false,
+      loadUpstreamSkills: async () => ({ revision: 'abc123', skills: new Map([['jf-git', new Map([['SKILL.md', Buffer.from('current')]])]]) }),
+    });
+
+    expect(error).toBeUndefined();
+    expect(process.exitCode).toBe(exitCode);
+    expect(transcript).toContain('intro: jfdevelops skills outdated');
+  });
+
+  it('returns a failing exit code on network errors even without --check', async () => {
+    const fixture = await createFixture({ '.agents/skills/jf-git/SKILL.md': 'current' });
+
+    fixtures.push(fixture);
+
+    const { prompter } = createScriptedPrompter(() => false);
+
+    await runProgram(['skills', 'outdated', fixture.root], {
+      createPrompter: () => prompter,
+      isInteractive: () => false,
+      loadUpstreamSkills: async () => { throw new Error('network unavailable'); },
+    });
+
+    expect(process.exitCode).toBe(1);
+  });
+});

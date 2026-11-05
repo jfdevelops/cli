@@ -19,11 +19,17 @@ export async function confirmIntegrations(integrations: DetectedIntegration[], e
     return retained;
   }
 
-  const selectedNames = await prompter.multiselect({
+  const selectAll = 'select-all';
+  const detected = integrations.map((integration) => integration.name);
+  const selection = await prompter.multiselect({
     message: 'Which detected integrations should this project adopt?',
-    choices: integrations.map((integration) => ({ value: integration.name, label: integration.name, hint: describeScopes(integration) })),
-    initialValues: integrations.filter((integration) => existing.some((addon) => addon.name === integration.name)).map((integration) => integration.name),
+    choices: [
+      { value: selectAll, label: 'Select all', hint: 'adopt every detected integration' },
+      ...integrations.map((integration) => ({ value: integration.name, label: integration.name, hint: describeScopes(integration) })),
+    ],
+    initialValues: detected,
   });
+  const selectedNames = selection.includes(selectAll) ? detected : selection;
   const existingByName = new Map(existing.map((addon) => [addon.name, addon]));
   const selected = selectedNames.map((name) => existingByName.get(name) ?? { name, options: {} });
 

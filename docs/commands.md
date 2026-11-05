@@ -90,3 +90,9 @@ All `add` commands accept `-d, --directory <path>` (default `.`).
 ## `skills sync [directory]`
 
 Uses the coding agents recorded in `jfdevelops.json`; run `init` again to change them. Offers to remove skills whose package is gone, asks which version to use when a skill is installed in several versions, previews the updates, and asks about each locally edited copy. See [skills and conflicts](skills.md).
+
+### `skills outdated [directory]`
+
+Read-only comparison of installed `.agents/skills` resources against the registered skills on `jfdevelops/skills`'s `main` branch. Defaults to the current directory; requires Git and network access, but no terminal or project configuration. Reports the upstream commit and the changed paths for each matching skill. Unmatched skills are reported as not compared.
+
+`--check` exits with code 1 when compared skills differ; otherwise differences are informational. Comparison failures always exit with code 1. No skills installed, or no differences among compared skills, exits with code 0. Local edits count as differences. This command does not install updates.
