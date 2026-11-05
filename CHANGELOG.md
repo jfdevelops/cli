@@ -1,5 +1,15 @@
 # @jfdevelops/cli
 
+## 0.6.0
+
+### Minor Changes
+
+- 4d51e7d: Add skills outdated to compare installed skill resources with jfdevelops/skills on main, with a --check exit code for CI.
+
+### Patch Changes
+
+- 17cef01: Preselect installed integrations during init and offer a Select all option for adopting every detected integration.
+
 ## 0.5.0
 
 ### Minor Changes
