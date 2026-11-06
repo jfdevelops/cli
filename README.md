@@ -18,7 +18,7 @@ Every command that changes files previews the full plan, shows a diff for anythi
 | `add` / `add --list` | Browse or list compatible additions |
 | `add skill <name>` | Enable one skill from an installed package |
 | `add addon <name>` | Adopt or install Convex, Portless, or an individual TanStack or jfdevelops library |
-| `add package <name>` | Scaffold a TypeScript library in the workspace |
+| `add package <name>` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks |
 | `skills` / `skills sync` | Check enabled skills against installed versions and update them |
 | `skills outdated [directory] [--check]` | Compare installed skills with `jfdevelops/skills` on `main` without changing files |
 | `create skills` | Register or scaffold the skills a library publishes and verify its tarball |
@@ -45,3 +45,13 @@ pnpm skills:sync    # regenerate this repository's agent files from the sibling 
 ```
 
 This repository follows the shared naming, coding, and Git conventions from `@jfdevelops/skills`, installed as checked-in copies with their provenance recorded in `jfdevelops.json`. See [CONTRIBUTING.md](CONTRIBUTING.md) before changing conventions or tooling.
+
+Update enabled skills to their latest published source packages, then review changes to the managed copies:
+
+```sh
+jfdevelops update
+jfdevelops update jf-git jf-coding-conventions
+jfdevelops update jf-git --directory ./my-project
+```
+
+`init` installs both `@jfdevelops/cli` and `@jfdevelops/skills` as direct development dependencies. `update` refreshes source packages with the project package manager, then uses the same local-edit review as `skills sync`. Selecting skills limits which copies are synchronized; updating a package also updates its code and may cross major versions. Local workspace/file packages are synchronized without a registry update. Use `jfdevelops skills --check` in CI to detect stale or edited copies against installed packages.

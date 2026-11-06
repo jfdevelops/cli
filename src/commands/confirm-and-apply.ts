@@ -1,7 +1,7 @@
 import { applyChangePlan } from '../plan/apply.js';
 import type { ChangePlan } from '../plan/create.js';
 import { PromptCancelledError, type Prompter } from '../prompts/prompter.js';
-import { describePlan, reportApplyResult, resolveConflicts } from './review.js';
+import { renderPlanTree, reportApplyResult, resolveConflicts } from './review.js';
 
 type ConfirmAndApplyOptions = {
   projectRoot: string;
@@ -17,7 +17,7 @@ type ConfirmAndApplyOptions = {
  * throws PromptCancelledError before anything is written.
  */
 export async function confirmAndApply({ projectRoot, plan, prompter, isConfigChanged, extraSteps = [] }: ConfirmAndApplyOptions) {
-  prompter.note([...describePlan(plan, isConfigChanged), ...extraSteps].join('\n'), 'Planned changes');
+  prompter.note([renderPlanTree(projectRoot, plan, isConfigChanged), ...(extraSteps.length > 0 ? ['', ...extraSteps] : [])].join('\n'), 'Planned changes');
 
   const resolutions = await resolveConflicts(plan, prompter);
 

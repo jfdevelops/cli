@@ -95,6 +95,7 @@ const noopLifecycle = {
   verifyProject: async () => undefined,
   initializeGit: async () => undefined,
   checkGitIdentity: async () => true,
+  readPackageManagerVersion: async () => '10.28.1',
 };
 
 afterEach(async () => {
@@ -337,8 +338,8 @@ describe('runCreate', () => {
     const layout = transcript.find((line) => line.startsWith('note [Project layout]')) ?? '';
 
     expect(layout).toContain('site/');
-    expect(layout).toContain('├── apps/');
-    expect(layout).toContain('(');
+    expect(layout).toContain('├── 📁 apps/');
+    expect(layout).toContain('SKILL.md [create]');
     expect(layout).toContain('Packages build on their own until you link them');
   });
 
@@ -355,6 +356,10 @@ describe('runCreate', () => {
 
     expect(JSON.parse(await readFile(join(destination, 'packages/utils/package.json'), 'utf8'))).toMatchObject({ name: 'site-utils', private: true });
     expect(existsSync(join(destination, 'packages/ui/src/index.ts'))).toBe(true);
+    expect(existsSync(join(destination, 'packages/ui/test/index.test.ts'))).toBe(true);
+    expect(existsSync(join(destination, 'apps/web/test/index.test.ts'))).toBe(true);
+    expect(await readFile(join(destination, '.github/workflows/ci.yml'), 'utf8')).toContain('node scripts/run-affected.mjs typecheck test build');
+    expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({ packageManager: 'pnpm@10.28.1' });
     expect(detected.workspace?.packagePaths).toEqual(['apps/web', 'packages/ui', 'packages/utils']);
     expect((await readProjectConfig(destination))?.targets.map((target) => [target.path, target.kind, target.template])).toEqual([
       ['apps/web', 'app', 'node-app'],
@@ -432,7 +437,7 @@ describe('runCreate', () => {
 
     const layout = transcript.find((line) => line.startsWith('note [Project layout]')) ?? '';
 
-    expect(layout).toContain('├── src/');
+    expect(layout).toContain('├── 📁 src/');
     expect(layout).toContain('jfdevelops.json');
     expect(layout).not.toContain('workspace');
     expect(transcript.findIndex((line) => line.startsWith('note [Project layout]'))).toBeLessThan(transcript.findIndex((line) => line.startsWith('note [Planned project]')));

@@ -6,6 +6,7 @@ import { runCreateSkills } from './commands/create/skills.js';
 import { runInit } from './commands/init/run.js';
 import { runSkillsOutdated } from './commands/skills/outdated.js';
 import { runSkillsStatus } from './commands/skills/status.js';
+import { runSkillsUpdate } from './commands/skills/update.js';
 import { runSkillsSync } from './commands/skills/sync.js';
 import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
 import { createClackPrompter } from './prompts/clack.js';
@@ -148,6 +149,28 @@ export function createProgram(version: string, dependencies = defaultDependencie
         await runAddCommand({ directory: options.directory, kind, name });
       });
   }
+
+  program
+    .command('update')
+    .description('Update all enabled skills, or only the named skills, from their latest published source packages')
+    .argument('[skills...]', 'enabled skill names (defaults to all)')
+    .option('-d, --directory <path>', 'project directory', '.')
+    .action(async (skillNames: string[], options: { directory: string }) => {
+      if (!dependencies.isInteractive()) {
+        program.error('jfdevelops update is interactive; run it in a terminal.');
+      }
+
+      const status = await runSkillsUpdate({
+        directory: options.directory,
+        skillNames,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
+      });
+
+      if (status === 'incomplete' || status === 'failed') {
+        process.exitCode = 1;
+      }
+    });
 
   const skills = program
     .command('skills')

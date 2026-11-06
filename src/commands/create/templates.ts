@@ -71,6 +71,95 @@ const libraryCompiler = {
 
 const libraryEntry = 'export function greet(name: string) {\n  return `Hello, ${name}.`;\n}\n';
 
+// Workspace packages build, test, and run their tasks with Vite+, which bundles tsdown and Vitest.
+export const vitePlusVersion = '^1.5.0';
+
+const nodeTypesVersion = '^22.20.5';
+
+// Type checks sources and tests together; tsconfig.build.json narrows it to the sources that are compiled.
+const packageCompiler = {
+  compilerOptions: {
+    target: 'ES2024',
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    noEmit: true,
+    strict: true,
+    noUncheckedIndexedAccess: true,
+    exactOptionalPropertyTypes: true,
+    skipLibCheck: true,
+  },
+  include: ['src', 'test'],
+};
+
+// `vp run` caches these tasks and first builds the workspace packages a package depends on.
+function createPackageTasks(buildCommand: string) {
+  const dependencyBuilds = "dependsOn: [{ task: 'build', from: ['dependencies', 'devDependencies'] }]";
+
+  return `  run: {
+    tasks: {
+      build: { command: '${buildCommand}', ${dependencyBuilds} },
+      typecheck: { command: 'tsc', ${dependencyBuilds} },
+      test: { command: 'vp test run', ${dependencyBuilds} },
+    },
+  },`;
+}
+
+const libraryViteConfig = `import { defineConfig } from 'vite-plus';
+
+export default defineConfig({
+  pack: {
+    entry: 'src/index.ts',
+    format: 'esm',
+    platform: 'neutral',
+    fixedExtension: true,
+    dts: true,
+    sourcemap: true,
+    tsconfig: 'tsconfig.build.json',
+  },
+  test: {
+    include: ['test/**/*.test.ts'],
+  },
+${createPackageTasks('vp pack')}
+});
+`;
+
+const appViteConfig = `import { defineConfig } from 'vite-plus';
+
+export default defineConfig({
+  test: {
+    include: ['test/**/*.test.ts'],
+  },
+${createPackageTasks('tsc -p tsconfig.build.json')}
+});
+`;
+
+const libraryTest = `import { describe, expect, it } from 'vite-plus/test';
+import { greet } from '../src/index.js';
+
+describe('greet', () => {
+  it('greets by name', () => {
+    expect(greet('Ada')).toBe('Hello, Ada.');
+  });
+});
+`;
+
+const appTest = `import { it } from 'vite-plus/test';
+
+it.todo('describes what the app does');
+`;
+
+type PackageFile = { path: string; content: string };
+
+function createPackageFile(path: string, value: unknown): PackageFile {
+
+  return { path, content: `${JSON.stringify(value, null, 2)}\n` };
+}
+
+function createPackageBuildCompiler(compilerOptions: Record<string, unknown>) {
+
+  return { extends: './tsconfig.json', compilerOptions: { noEmit: false, rootDir: 'src', outDir: 'dist', ...compilerOptions }, include: ['src'] };
+}
+
 export function createJsonFile(path: string, value: unknown): DesiredFile {
 
   return { path, owner: projectOwner, content: `${JSON.stringify(value, null, 2)}\n` };
@@ -149,7 +238,7 @@ function createAppFiles(projectName: string, template: ProjectTemplate, cliVersi
     version: '0.0.0',
     type: 'module',
     scripts: { build: 'tsc', start: 'node dist/index.js', ...formatting.scripts },
-    devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': '^22.20.5', typescript: typescriptVersion, ...formatting.devDependencies },
+    devDependencies: { '@jfdevelops/cli': cliVersion, '@types/node': nodeTypesVersion, typescript: typescriptVersion, ...formatting.devDependencies },
   };
   return [
     ...createCommonFiles(projectName, template),
@@ -182,26 +271,51 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
 }
 
 /**
- * Files for a library package inside an existing workspace. Formatting, linting, and the CLI
- * dependency stay at the workspace root, so the package only declares what it builds with.
+ * Files for a library package inside a workspace, laid out like the jfdevelops libraries: sources in `src` and tests in
+ * `test`, built with `vp pack` and tested with `vp test`. Formatting, linting, and the CLI dependency stay at the workspace root.
  */
-export function createWorkspacePackageFiles(packageName: string, { isPrivate = false } = {}) {
+export function createWorkspacePackageFiles(packageName: string, { isPrivate = false } = {}): PackageFile[] {
   const manifest = {
     name: packageName,
     ...(isPrivate ? { private: true } : {}),
     version: '0.0.0',
     type: 'module',
     files: ['dist'],
-    exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
-    scripts: { build: 'tsc', prepack: 'tsc' },
-    devDependencies: { typescript: typescriptVersion },
+    exports: { '.': { types: './dist/index.d.mts', import: './dist/index.mjs' }, './package.json': './package.json' },
+    scripts: { prepack: 'vp pack' },
+    devDependencies: { typescript: typescriptVersion, 'vite-plus': vitePlusVersion },
   };
 
   return [
     { path: 'README.md', content: `# ${packageName}\n\nWorkspace library generated with @jfdevelops/cli.\n` },
-    { path: 'package.json', content: `${JSON.stringify(manifest, null, 2)}\n` },
-    { path: 'tsconfig.json', content: `${JSON.stringify(libraryCompiler, null, 2)}\n` },
+    createPackageFile('package.json', manifest),
+    createPackageFile('tsconfig.json', packageCompiler),
+    createPackageFile('tsconfig.build.json', createPackageBuildCompiler({ declaration: true, declarationMap: true })),
+    { path: 'vite.config.ts', content: libraryViteConfig },
     { path: 'src/index.ts', content: libraryEntry },
+    { path: 'test/index.test.ts', content: libraryTest },
+  ];
+}
+
+/** Files for an app inside a workspace, with the same `src` and `test` layout as its libraries. */
+export function createWorkspaceAppFiles(packageName: string): PackageFile[] {
+  const manifest = {
+    name: packageName,
+    private: true,
+    version: '0.0.0',
+    type: 'module',
+    scripts: { start: 'node dist/index.js' },
+    devDependencies: { '@types/node': nodeTypesVersion, typescript: typescriptVersion, 'vite-plus': vitePlusVersion },
+  };
+
+  return [
+    { path: 'README.md', content: `# ${packageName}\n\nWorkspace app generated with @jfdevelops/cli.\n` },
+    createPackageFile('package.json', manifest),
+    createPackageFile('tsconfig.json', packageCompiler),
+    createPackageFile('tsconfig.build.json', createPackageBuildCompiler({})),
+    { path: 'vite.config.ts', content: appViteConfig },
+    { path: 'src/index.ts', content: appEntry },
+    { path: 'test/index.test.ts', content: appTest },
   ];
 }
 

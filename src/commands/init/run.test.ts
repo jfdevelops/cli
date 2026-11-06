@@ -126,13 +126,38 @@ describe('runInit', () => {
       '.agents/skills/build-forms/SKILL.md',
       '.claude/skills/build-forms/SKILL.md',
     ]);
-    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0' } });
+    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0', '@jfdevelops/skills': '0.1.0' } });
     expect(transcript).toContain('outro: Project initialized.');
+    const preview = transcript.find((line) => line.startsWith('note [Planned changes]')) ?? '';
+
+    expect(preview).toContain('\u251c\u2500\u2500 \u{1f4c1} .agents/');
+    expect(preview).toContain('\u{1f4c4} SKILL.md [create]');
+    expect(preview).not.toContain('create    .agents/skills/');
 
     const repeat = createScriptedPrompter(answer(['build-forms']));
 
     await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: repeat.prompter })).resolves.toBe('unchanged');
     expect(repeat.transcript).not.toContain('? Apply these changes?');
+  });
+
+  it('adds the shared skills dependency even when the CLI is already declared', async () => {
+    const projectRoot = await createProject(createProjectFiles({
+      'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { '@jfdevelops/cli': '0.1.0' } },
+    }));
+    const installs: string[] = [];
+
+    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer([])).prompter, installDependency: async (options) => void installs.push(options.packageName) })).resolves.toBe('complete');
+    expect(installs).toEqual(['@jfdevelops/skills']);
+  });
+
+  it('uses the project-installed shared skills rather than the CLI bundled version', async () => {
+    const projectRoot = await createProject(createProjectFiles({
+      'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { '@jfdevelops/skills': '2.0.0' } },
+      ...createSkillPackage('node_modules/@jfdevelops/skills', { name: '@jfdevelops/skills', version: '2.0.0', skills: ['jf-git'] }),
+    }));
+
+    await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer([])).prompter })).resolves.toBe('complete');
+    expect((await readProjectConfig(projectRoot))?.skills).toEqual([expect.objectContaining({ name: 'jf-git', source: expect.objectContaining({ version: '2.0.0' }) })]);
   });
 
   it('removes deselected skills and their instruction links on a later run', async () => {
@@ -280,7 +305,10 @@ describe('runInit', () => {
 
     await runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency: async (options) => void installs.push(options) });
 
-    expect(installs).toEqual([expect.objectContaining({ packageManager: 'pnpm', isWorkspaceRoot: true })]);
+    expect(installs).toEqual([
+      expect.objectContaining({ packageName: '@jfdevelops/cli', packageManager: 'pnpm', isWorkspaceRoot: true }),
+      expect.objectContaining({ packageName: '@jfdevelops/skills', packageManager: 'pnpm', isWorkspaceRoot: true }),
+    ]);
     expect(transcript.find((line) => line.startsWith('note [Planned changes]'))).toContain(
       'Install development dependency: pnpm add --save-dev --save-exact --workspace-root @jfdevelops/cli@0.1.0',
     );

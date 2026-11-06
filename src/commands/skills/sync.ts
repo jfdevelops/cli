@@ -66,8 +66,18 @@ async function chooseVersions(inspection: SkillsInspection, prompter: Prompter) 
   return selectedVersions;
 }
 
-async function syncSkills(directory: string, prompter: Prompter): Promise<SkillsSyncStatus> {
-  const initial = await inspectSkills(directory);
+async function syncSkills(directory: string, prompter: Prompter, skillNames?: string[]): Promise<SkillsSyncStatus> {
+  const initial = await inspectSkills(directory, skillNames ? { skillNames } : {});
+
+  if (skillNames) {
+    const unknown = skillNames.filter((name) => !initial.config.skills.some((skill) => skill.name === name));
+
+    if (unknown.length > 0) {
+      throw new Error(`Unknown enabled skills: ${unknown.join(', ')}`);
+    }
+
+    initial.statuses = initial.statuses.filter((status) => skillNames.includes(status.name));
+  }
 
   for (const problem of initial.catalog.problems) {
     prompter.warn(`${problem.package}: ${problem.message}`);
@@ -76,7 +86,7 @@ async function syncSkills(directory: string, prompter: Prompter): Promise<Skills
   const removedSkills = await chooseRemovedSkills(initial.statuses.filter((status) => status.state === 'missing-source'), prompter);
   const selectedVersions = await chooseVersions(initial, prompter);
   const hasChoices = removedSkills.length > 0 || Object.keys(selectedVersions).length > 0;
-  const { project, config, sources, plan } = hasChoices ? await inspectSkills(directory, { removedSkills, selectedVersions }) : initial;
+  const { project, config, sources, plan } = hasChoices ? await inspectSkills(directory, { removedSkills, selectedVersions, ...(skillNames ? { skillNames } : {}) }) : initial;
   const plannedConfig = parseProjectConfig(createSyncConfig(config, sources, removedSkills, plan.managedFiles));
   const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(config);
 
@@ -106,12 +116,12 @@ async function syncSkills(directory: string, prompter: Prompter): Promise<Skills
  * source package is gone, and asks before replacing or deleting locally edited copies. Nothing is
  * written before the final confirmation.
  */
-export async function runSkillsSync({ directory, prompter }: { directory: string; prompter: Prompter }): Promise<SkillsSyncStatus> {
+export async function runSkillsSync({ directory, prompter, skillNames }: { directory: string; prompter: Prompter; skillNames?: string[] }): Promise<SkillsSyncStatus> {
   prompter.intro('jfdevelops skills sync');
 
   try {
 
-    return await syncSkills(directory, prompter);
+    return await syncSkills(directory, prompter, skillNames);
   } catch (error) {
     if (error instanceof PromptCancelledError) {
       prompter.cancel('Sync cancelled. No files were changed.');

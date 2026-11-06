@@ -17,10 +17,22 @@ import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { chooseAgents } from '../agents.js';
-import { describePlan, resolveConflicts } from '../review.js';
-import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
+import { listPlannedEntries, resolveConflicts } from '../review.js';
+import { renderFileTree } from '../tree.js';
+import {
+  formatCreatedProject,
+  hasGitIdentity,
+  initializeProjectGit,
+  isGitRemoteUrl,
+  readPackageManagerVersion,
+  verifyCreatedProject,
+  type GitIdentityCheck,
+  type GitInitializer,
+  type PackageManagerVersionReader,
+  type ProjectFormatter,
+  type ProjectVerifier,
+} from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
-import { renderFileTree } from './tree.js';
 import { createWorkspaceFiles, createWorkspaceTargets } from './workspace.js';
 import { chooseAppWorkspace, chooseLibraryWorkspace } from './workspace-prompt.js';
 
@@ -33,6 +45,7 @@ export type CreateOptions = {
   verifyProject?: ProjectVerifier;
   initializeGit?: GitInitializer;
   checkGitIdentity?: GitIdentityCheck;
+  readPackageManagerVersion?: PackageManagerVersionReader;
 };
 
 export type CreateStatus = 'complete' | 'incomplete' | 'cancelled' | 'failed';
@@ -155,6 +168,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     verifyProject = verifyCreatedProject,
     initializeGit = initializeProjectGit,
     checkGitIdentity = hasGitIdentity,
+    readPackageManagerVersion: readVersion = readPackageManagerVersion,
   } = options;
   const selection = await chooseProject(options);
 
@@ -171,7 +185,14 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const selectedSkills = catalog.skills;
   const { workspace } = selection;
   const templateFiles = workspace
-    ? createWorkspaceFiles({ projectName: selection.projectName, version, formatter: selection.formatter, packageManager: selection.packageManager, layout: workspace })
+    ? createWorkspaceFiles({
+        projectName: selection.projectName,
+        version,
+        formatter: selection.formatter,
+        packageManager: selection.packageManager,
+        packageManagerVersion: await readVersion(selection.packageManager),
+        layout: workspace,
+      })
     : createTemplateFiles(selection.projectName, selection.templateName, version, selection.formatter);
   const skillFiles = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill, selection.agents)))).flat();
   const owners = [
@@ -197,10 +218,10 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     missingSourceSkills: [],
   };
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
-  const plannedChanges = describePlan(plan, true);
+  const plannedChanges: string[] = [];
 
   plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version, Boolean(workspace))}`);
-  plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then format:check and build`);
+  plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then ${workspace ? 'format:check, typecheck, test, and build' : 'format:check and build'}`);
 
   if (selection.shouldInitializeGit) {
     plannedChanges.push('Initialize Git on main and create chore(init): initialize project');
@@ -210,8 +231,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     }
   }
 
-  const layoutPaths = [...plan.changes.filter((change) => change.action !== 'unchanged').map((change) => change.path), 'jfdevelops.json'];
-  const layoutNote = renderFileTree(basename(selection.directory), layoutPaths);
+  const layoutNote = renderFileTree(basename(selection.directory), listPlannedEntries(plan, true));
 
   prompter.note(workspace ? `${layoutNote}\n\nPackages build on their own until you link them with workspace dependencies.` : layoutNote, 'Project layout');
   prompter.note(plannedChanges.join('\n'), 'Planned project');
@@ -258,7 +278,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
 
   if (result.isComplete && !dependencyError && !verificationError) {
     try {
-      await verifyProject({ directory: selection.directory, packageManager: selection.packageManager });
+      await verifyProject({ directory: selection.directory, packageManager: selection.packageManager, isWorkspace: Boolean(workspace) });
 
       if (selection.shouldInitializeGit) {
         await initializeGit(selection.directory, remoteUrl);
