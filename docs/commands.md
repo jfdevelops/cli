@@ -11,7 +11,9 @@ Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` onc
 | `add --list` | List compatible additions without changing anything | No |
 | `add skill <name>` | Enable one skill from an installed package | Yes |
 | `add addon <name>` | Adopt or install an integration and offer its skills | Yes |
-| `add package <name>` | Scaffold a TypeScript library in the workspace | Yes |
+| `add package <name>` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks | Yes |
+| `update [directory]` | Upgrade the CLI and refresh managed project setup | Yes |
+| `skills update [skills...]` | Update all enabled skills or selected names from published packages | Yes |
 | `skills [directory]` | Report whether enabled skills match installed versions | No |
 | `skills sync [directory]` | Update skill copies to the installed versions | Yes |
 
@@ -52,7 +54,23 @@ Choosing an app also offers a **Monorepo** option (space to select, Enter to con
 
 After the directories, **Do you want to add a package?** lets you add libraries. Answer yes and type a name (the first has the grey default `core`); `create` shows where it will be created, such as `Added packages/utils (acme-utils)`, then asks whether to add another. Names that are invalid or already used in the workspace are asked for again. Libraries next to an app are private.
 
-The workspace is defined in `pnpm-workspace.yaml` for pnpm and in the `workspaces` field of `package.json` for npm, yarn, and bun. The root `build` script builds every package, and each package is recorded as a target in `jfdevelops.json`. Packages build on their own until you link them with workspace dependencies. Use `add package` to add libraries afterwards. The yarn root build script uses `yarn workspaces foreach`, which needs Yarn 2 or newer.
+The workspace is defined in `pnpm-workspace.yaml` for pnpm and in the `workspaces` field of `package.json` for npm, yarn, and bun. The root `packageManager` field records the package manager version you created it with. Each package is recorded as a target in `jfdevelops.json`. Packages build on their own until you link them with workspace dependencies. Use `add package` to add libraries afterwards.
+
+#### Packages and tasks
+
+Workspaces use [Vite+](https://viteplus.dev). Every package has its sources in `src/` (a stub `index.ts`) and its tests in `test/` (a stub `index.test.ts` that imports from `vite-plus/test`), with a `tsconfig.json` that type checks both and a `tsconfig.build.json` for the compiled sources. Each package's `vite.config.ts` defines three cached tasks:
+
+| Task | Library | App |
+| --- | --- | --- |
+| `build` | `vp pack` (tsdown) to `dist/index.mjs` and `dist/index.d.mts` | `tsc -p tsconfig.build.json` |
+| `typecheck` | `tsc` | `tsc` |
+| `test` | `vp test run` (Vitest) | `vp test run` |
+
+Each task first builds the workspace packages its package depends on. The root `build`, `typecheck`, and `test` scripts run these tasks in every package with `vp run -r`. A task whose inputs have not changed replays from the Vite+ cache instead of running again.
+
+#### CI
+
+Workspaces also get `.github/workflows/ci.yml`. It installs Vite+, Node.js, and your package manager with `voidzero-dev/setup-vp`, then checks formatting. Next, `scripts/run-affected.mjs` runs `typecheck`, `test`, and `build` only in the packages a change affects. It compares with the pull request's base, or with the previous commit on pushes to `main`, and selects each package that has changed files, along with the packages that depend on it, through `vp run --filter "...{<directory>}"`. Changes only to Markdown, `.agents/`, `.claude/`, or `jfdevelops.json` run nothing. A change outside every package, such as the lockfile or root configuration, runs the tasks everywhere, and so does a base that cannot be compared. The workflow also restores and saves the Vite Task cache (`node_modules/.vite/task-cache`) between runs. Run `BASE_SHA=<commit> node scripts/run-affected.mjs typecheck test build` to do the same locally.
 
 ### Library workspace
 
@@ -96,3 +114,13 @@ Uses the coding agents recorded in `jfdevelops.json`; run `init` again to change
 Read-only comparison of installed `.agents/skills` resources against the registered skills on `jfdevelops/skills`'s `main` branch. Defaults to the current directory; requires Git and network access, but no terminal or project configuration. Reports the upstream commit and the changed paths for each matching skill. Unmatched skills are reported as not compared.
 
 `--check` exits with code 1 when compared skills differ; otherwise differences are informational. Comparison failures always exit with code 1. No skills installed, or no differences among compared skills, exits with code 0. Local edits count as differences. This command does not install updates.
+
+## `jfdevelops skills update [skills...]`
+
+Updates all enabled skills by default, or only the named skills. Use `-d, --directory <path>` to choose a project. The command previews source-package upgrades to `latest`, asks for confirmation, then reviews the nested file tree and any locally edited skill copies before synchronizing them. Package upgrades change the manifest and lockfile even if the later file review is declined. Multiple skills from the same package share one package upgrade per scope. Local workspace/file sources are not upgraded from the registry. Optional source dependencies must be updated with the package manager before `skills sync`.
+
+`init` installs the CLI and the shared skills package directly as development dependencies. Planned file changes use a nested tree with folder/file icons and action labels.
+
+## `jfdevelops update [directory]`
+
+Upgrades the project's `@jfdevelops/cli` dependency to the latest published release, then runs that installed release to refresh the project. It updates enabled skills, runs init to review newly detected integrations/skills, and regenerates tooling from the project's recorded templates and formatter. The planned file tree and local-edit conflicts are reviewed before tooling is written. Template entry/test stubs are only added when missing; existing application source, tests, README files, workspace membership, and unrelated manifest entries are preserved. Adopted projects without template metadata keep their existing build tooling. Dependencies are installed after tooling changes. Package and file updates already applied are retained if a later step is cancelled or fails; rerun update to retry.

@@ -1,7 +1,9 @@
+import { basename } from 'node:path';
 import { canOverwrite, type ApplyResult, type ConflictResolution } from '../plan/apply.js';
 import type { ChangePlan, ConflictReason } from '../plan/create.js';
 import { formatChangeDiff } from '../plan/diff.js';
 import type { Prompter } from '../prompts/prompter.js';
+import { renderFileTree, type TreeEntry } from './tree.js';
 
 const reasonDescriptions: Record<ConflictReason, string> = {
   'locally-edited': 'was edited after the CLI last wrote it',
@@ -11,13 +13,17 @@ const reasonDescriptions: Record<ConflictReason, string> = {
   'not-a-file': 'is a directory or link, not a file',
 };
 
-// One line per change that would alter the project, aligned by action.
-export function describePlan(plan: ChangePlan, isConfigChanged: boolean) {
-  const lines = plan.changes
-    .filter((change) => change.action !== 'unchanged')
-    .map((change) => `${(change.action === 'conflict' ? 'conflict' : change.action).padEnd(9)} ${change.path}`);
+// Every change that would alter the project, tagged with its action.
+export function listPlannedEntries(plan: ChangePlan, isConfigChanged: boolean): TreeEntry[] {
+  const entries = plan.changes.filter((change) => change.action !== 'unchanged').map((change) => ({ path: change.path, note: change.action }));
 
-  return isConfigChanged ? [...lines, `${'write'.padEnd(9)} jfdevelops.json`] : lines;
+  return isConfigChanged ? [...entries, { path: 'jfdevelops.json', note: 'write' }] : entries;
+}
+
+// The planned changes drawn as a folder tree, with the project root named by its directory.
+export function renderPlanTree(projectRoot: string, plan: ChangePlan, isConfigChanged: boolean) {
+
+  return renderFileTree(basename(projectRoot), listPlannedEntries(plan, isConfigChanged));
 }
 
 /**

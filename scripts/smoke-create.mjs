@@ -1,5 +1,6 @@
 // Creates real projects for each template, formatter, and package manager combination, installing
-// their dependencies and running the generated format:check and build scripts. Requires network access.
+// their dependencies and running the generated format:check and build scripts, plus typecheck and test in workspaces.
+// Requires network access.
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -127,8 +128,14 @@ try {
       await readFile(join(directory, 'apps/web/dist/index.js'), 'utf8');
     }
 
+    // Workspace libraries build with vp pack, which writes .mjs files, and every workspace gets the affected-only CI workflow.
     for (const library of combination.libraries ?? []) {
-      await readFile(join(directory, 'packages', library, 'dist/index.js'), 'utf8');
+      await readFile(join(directory, 'packages', library, 'dist/index.mjs'), 'utf8');
+      await readFile(join(directory, 'packages', library, 'dist/index.d.mts'), 'utf8');
+    }
+
+    if (combination.monorepo || combination.libraries) {
+      await readFile(join(directory, '.github/workflows/ci.yml'), 'utf8');
     }
 
     if (combination.shouldInitializeGit) {

@@ -68,6 +68,8 @@ try {
     [['create'], 'create'],
     [['create', 'skills'], 'create skills'],
     [['init', 'project'], 'init'],
+    [['update', 'project'], 'update'],
+    [['skills', 'update'], 'skills update'],
     [['add', '--directory', 'project'], 'add'],
     [['add', 'skill', 'jf-git', '--directory', 'project'], 'add'],
     [['skills', 'sync', 'project'], 'skills sync'],

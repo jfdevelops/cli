@@ -242,3 +242,23 @@ describe('skills outdated command', () => {
     expect(process.exitCode).toBe(1);
   });
 });
+
+describe('update command', () => {
+  it('routes selected names and the project directory to the update flow', async () => {
+    const fixture = await createFixture({ 'package.json': { name: 'bare' } });
+    const { prompter, transcript } = createScriptedPrompter(() => true);
+
+    fixtures.push(fixture);
+    await runProgram(['skills', 'update', 'jf-git', '--directory', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
+    expect(transcript[0]).toBe('intro: jfdevelops skills update');
+    expect(transcript).toContain('error: No jfdevelops.json found. Run jfdevelops init first.');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('requires an interactive terminal before updating packages', async () => {
+    const { output, error } = await runProgram(['update'], { createPrompter: () => createScriptedPrompter(() => true).prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops update is interactive');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+});

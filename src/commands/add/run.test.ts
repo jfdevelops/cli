@@ -3,6 +3,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
+import { writeProjectConfig } from '../../config/write.js';
+import { createChangePlan } from '../../plan/create.js';
+import { hashContent } from '../../plan/hash.js';
+import { createProjectUpdateFiles } from '../update/files.js';
 import type { PackageInstaller } from '../../dependencies/install.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question, type Respond } from '../../testing/prompter.js';
@@ -295,6 +299,41 @@ describe('add addon', () => {
 });
 
 describe('add package', () => {
+  it('tracks added package tooling for updates while preserving existing managed files', async () => {
+    const projectRoot = await createInitializedProject(createWorkspaceFiles(), []);
+    const initial = await readProjectConfig(projectRoot);
+
+    if (!initial) {
+      throw new Error('Expected initialized configuration');
+    }
+
+    await writeFile(join(projectRoot, 'README.md'), 'Project documentation');
+    const readme = { path: 'README.md', owner: { type: 'project' as const }, sha256: hashContent('Project documentation') };
+
+    await writeProjectConfig(projectRoot, { ...initial, formatter: 'prettier', managedFiles: [...initial.managedFiles, readme] });
+    await expect(add(projectRoot, { kind: 'package', name: '@acme/utils' })).resolves.toMatchObject({ status: 'complete' });
+    const config = await readProjectConfig(projectRoot);
+
+    if (!config) {
+      throw new Error('Expected configuration after adding the package');
+    }
+
+    expect(await readText(projectRoot, 'README.md')).toBe('Project documentation');
+    expect(config.managedFiles).toContainEqual(readme);
+    expect(config.managedFiles).toContainEqual({ path: 'packages/utils/vite.config.ts', owner: { type: 'project' }, sha256: hashContent(await readText(projectRoot, 'packages/utils/vite.config.ts')) });
+    const files = (await createProjectUpdateFiles(projectRoot, config, '0.2.0')).filter((file) => file.path.startsWith('packages/utils/'));
+    const managedFiles = config.managedFiles.filter((record) => files.some((file) => file.path === record.path));
+    const plan = await createChangePlan({ projectRoot, files, managedFiles, owners: [{ type: 'project' }] });
+
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.changes).toContainEqual(expect.objectContaining({ path: 'packages/utils/vite.config.ts', action: 'update' }));
+    expect(plan.changes).toContainEqual(expect.objectContaining({ path: 'packages/utils/package.json', action: 'update' }));
+    await writeFile(join(projectRoot, 'packages/utils/vite.config.ts'), '// locally edited tooling\n');
+    const edited = await createChangePlan({ projectRoot, files, managedFiles, owners: [{ type: 'project' }] });
+
+    expect(edited.conflicts).toContainEqual(expect.objectContaining({ path: 'packages/utils/vite.config.ts', reason: 'locally-edited' }));
+  });
+
   it('scaffolds a library inside an existing workspace pattern', async () => {
     const projectRoot = await createInitializedProject(createWorkspaceFiles(), []);
     const workspaceBefore = await readText(projectRoot, 'pnpm-workspace.yaml');
@@ -302,7 +341,7 @@ describe('add package', () => {
 
     expect(status).toBe('complete');
     expect(transcript.at(-1)).toBe('outro: Created @acme/utils in packages/utils. Run pnpm install to link it into the workspace.');
-    expect(JSON.parse(await readText(projectRoot, 'packages/utils/package.json'))).toMatchObject({ name: '@acme/utils', type: 'module' });
+    expect(JSON.parse(await readText(projectRoot, 'packages/utils/package.json'))).toMatchObject({ name: '@acme/utils', type: 'module', scripts: { build: 'vp run package-build' } });
     expect(existsSync(join(projectRoot, 'packages/utils/src/index.ts'))).toBe(true);
     expect(await readText(projectRoot, 'pnpm-workspace.yaml')).toBe(workspaceBefore);
     expect((await readProjectConfig(projectRoot))?.targets).toContainEqual({ path: 'packages/utils', kind: 'library', template: 'typescript-library', options: {} });

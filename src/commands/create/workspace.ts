@@ -1,15 +1,16 @@
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import type { DesiredFile } from '../../plan/create.js';
+import { createCiFiles } from './ci.js';
 import {
-  appCompiler,
-  appEntry,
   createFormattingFiles,
   createJsonFile,
+  createWorkspaceAppFiles,
   createWorkspacePackageFiles,
   getFormattingManifest,
   libraryTemplateName,
   projectOwner,
   typescriptVersion,
+  vitePlusVersion,
   type FormatterName,
 } from './templates.js';
 
@@ -31,6 +32,8 @@ type WorkspaceFileOptions = {
   version: string;
   formatter: FormatterName;
   packageManager: PackageManagerName;
+  // Recorded as packageManager, so Vite+ and CI use the version the project was created with.
+  packageManagerVersion: string;
   layout: WorkspaceLayout;
 };
 
@@ -69,25 +72,7 @@ export function createWorkspaceTargets(layout: WorkspaceLayout, appTemplateName:
   ];
 }
 
-// Each command runs the build script of every registered workspace package, including ones added later, except the root itself.
-function getBuildScript(packageManager: PackageManagerName, rootName: string) {
-  switch (packageManager) {
-    case 'pnpm':
-
-      return 'pnpm -r run build';
-    case 'npm':
-
-      return 'npm run build --workspaces --if-present';
-    case 'yarn':
-
-      return `yarn workspaces foreach --all --exclude ${rootName} run build`;
-    case 'bun':
-
-      return "bun run --filter '*' build";
-  }
-}
-
-function createRootFiles({ projectName, version, formatter, packageManager, layout }: WorkspaceFileOptions): DesiredFile[] {
+function createRootFiles({ projectName, version, formatter, packageManager, packageManagerVersion, layout }: WorkspaceFileOptions): DesiredFile[] {
   const formatting = getFormattingManifest(formatter);
   const patterns = getWorkspacePatterns(layout);
   const manifest = {
@@ -95,9 +80,10 @@ function createRootFiles({ projectName, version, formatter, packageManager, layo
     private: true,
     version: '0.0.0',
     type: 'module',
+    packageManager: `${packageManager}@${packageManagerVersion}`,
     ...(packageManager === 'pnpm' ? {} : { workspaces: patterns }),
-    scripts: { build: getBuildScript(packageManager, projectName), ...formatting.scripts },
-    devDependencies: { '@jfdevelops/cli': version, typescript: typescriptVersion, ...formatting.devDependencies },
+    scripts: { build: 'vp run -r build', typecheck: 'vp run -r typecheck', test: 'vp run -r test', ...formatting.scripts },
+    devDependencies: { '@jfdevelops/cli': version, typescript: typescriptVersion, 'vite-plus': vitePlusVersion, ...formatting.devDependencies },
   };
   const packageList = [...layout.apps, ...layout.libraries].map((workspacePackage) => `- \`${workspacePackage.directory}\`: ${workspacePackage.name}`).join('\n');
 
@@ -106,10 +92,11 @@ function createRootFiles({ projectName, version, formatter, packageManager, layo
     {
       path: 'README.md',
       owner: projectOwner,
-      content: `# ${projectName}\n\nWorkspace generated with @jfdevelops/cli.\n\n${packageList}\n\nPackages build on their own until you link them with workspace dependencies.\n`,
+      content: `# ${projectName}\n\nWorkspace generated with @jfdevelops/cli.\n\n${packageList}\n\nPackages build on their own until you link them with workspace dependencies.\n\nCI checks only the packages a change affects and the packages that depend on them.\n`,
     },
     ...createFormattingFiles(formatter),
     createJsonFile('package.json', manifest),
+    ...createCiFiles(),
     ...(packageManager === 'pnpm'
       ? [{ path: 'pnpm-workspace.yaml', owner: projectOwner, content: `packages:\n${patterns.map((pattern) => `  - ${pattern}`).join('\n')}\n` }]
       : []),
@@ -117,21 +104,8 @@ function createRootFiles({ projectName, version, formatter, packageManager, layo
 }
 
 function createAppFiles(app: WorkspacePackage): DesiredFile[] {
-  const manifest = {
-    name: app.name,
-    private: true,
-    version: '0.0.0',
-    type: 'module',
-    scripts: { build: 'tsc', start: 'node dist/index.js' },
-    devDependencies: { '@types/node': '^22.20.5', typescript: typescriptVersion },
-  };
 
-  return [
-    { path: `${app.directory}/README.md`, owner: projectOwner, content: `# ${app.name}\n\nWorkspace app generated with @jfdevelops/cli.\n` },
-    createJsonFile(`${app.directory}/package.json`, manifest),
-    createJsonFile(`${app.directory}/tsconfig.json`, appCompiler),
-    { path: `${app.directory}/src/index.ts`, owner: projectOwner, content: appEntry },
-  ];
+  return createWorkspaceAppFiles(app.name).map((file) => ({ path: `${app.directory}/${file.path}`, owner: projectOwner, content: file.content }));
 }
 
 // Libraries next to apps are shared internally, so they are private; a workspace of only libraries is meant to publish them.
