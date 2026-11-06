@@ -1,5 +1,12 @@
 # @jfdevelops/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- d3a04a2: Add skills update for all or selected enabled skills and a project update command that upgrades the CLI and refreshes recorded template tooling, integrations, and skills, install the shared skills package directly during init, and show planned file changes as a nested tree with folder and file icons.
+- d3a04a2: Workspace packages now have stub sources in `src/` and stub tests in `test/`, and build, type check, and test through cached Vite+ tasks. New workspaces also get a CI workflow that runs these tasks only in the packages a change affects and the packages that depend on them, reusing cached results between runs.
+
 ## 0.6.0
 
 ### Minor Changes
