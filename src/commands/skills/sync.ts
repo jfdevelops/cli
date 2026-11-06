@@ -124,7 +124,7 @@ export async function runSkillsSync({ directory, prompter, skillNames }: { direc
     return await syncSkills(directory, prompter, skillNames);
   } catch (error) {
     if (error instanceof PromptCancelledError) {
-      prompter.cancel('Sync cancelled. No files were changed.');
+      prompter.cancel('Sync cancelled. No skill copies were changed.');
 
       return 'cancelled';
     }

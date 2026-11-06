@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { readProjectConfig } from '../../config/read.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { hashContent } from '../../plan/hash.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
@@ -124,6 +125,7 @@ writeFileSync('handoff.json', JSON.stringify(process.argv.slice(2)));
     const status = await runUpdate({ directory: root, version: '0.2.0', isRefreshingProject: true, prompter: createPrompter().prompter, installPackage: async () => undefined, installDependency: async () => undefined, installProject: async (directory) => void installs.push(directory) });
 
     expect(status).toBe('complete');
+    expect((await readProjectConfig(root))?.generator.version).toBe('0.2.0');
     expect(existsSync(join(root, '.github/workflows/ci.yml'))).toBe(true);
     expect(existsSync(join(root, 'scripts/run-affected.mjs'))).toBe(true);
     expect(existsSync(join(root, 'apps/web/vite.config.ts'))).toBe(true);

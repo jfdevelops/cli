@@ -70,7 +70,13 @@ export async function runSkillsUpdate({ directory, prompter, skillNames, install
       }
     }
 
-    return await runSkillsSync({ directory, prompter, skillNames: names });
+    const status = await runSkillsSync({ directory, prompter, skillNames: names });
+
+    if (status === 'cancelled' && installs.length > 0) {
+      prompter.info('Source package upgrades remain installed, including manifest and lockfile changes.');
+    }
+
+    return status;
   } catch (error) {
     if (error instanceof PromptCancelledError) {
       prompter.cancel('Update cancelled.');

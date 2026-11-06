@@ -259,13 +259,34 @@ describe('runSkillsSync', () => {
     const { prompter, transcript } = createScriptedPrompter(answer((question) => (question.kind === 'confirm' ? false : undefined)));
 
     await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('cancelled');
-    expect(transcript.at(-1)).toBe('cancel: Sync cancelled. No files were changed.');
+    expect(transcript.at(-1)).toBe('cancel: Sync cancelled. No skill copies were changed.');
     expect(await readText(projectRoot, 'jfdevelops.json')).toBe(before);
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).not.toContain('v2');
   });
 });
 
 describe('runSkillsUpdate', () => {
+  it('explains that completed package upgrades remain after declining the skill file review', async () => {
+    const projectRoot = await createInitializedProject();
+    const before = await readText(projectRoot, '.agents/skills/build-forms/SKILL.md');
+    const { prompter, transcript } = createScriptedPrompter(answer((question) => question.message === 'Apply these changes?' ? false : undefined));
+
+    await expect(runSkillsUpdate({
+      directory: projectRoot,
+      skillNames: ['build-forms'],
+      prompter,
+      installPackage: async () => {
+        await upgradeForms(projectRoot);
+        await writeFile(join(projectRoot, 'pnpm-lock.yaml'), 'updated source package lockfile');
+      },
+    })).resolves.toBe('cancelled');
+    expect(await readText(projectRoot, 'pnpm-lock.yaml')).toBe('updated source package lockfile');
+    expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toBe(before);
+    expect(transcript).toContain('cancel: Sync cancelled. No skill copies were changed.');
+    expect(transcript).toContain('info: Source package upgrades remain installed, including manifest and lockfile changes.');
+    expect(transcript.join('\n')).not.toContain('No files were changed');
+  });
+
   it('reports a package installation failure without changing skill copies', async () => {
     const projectRoot = await createInitializedProject();
     const before = await readText(projectRoot, '.agents/skills/build-forms/SKILL.md');

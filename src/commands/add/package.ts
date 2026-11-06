@@ -7,7 +7,7 @@ import { packageNameSchema, projectPathSchema } from '../../config/schema.js';
 import type { ProjectDetection } from '../../detect/project.js';
 import type { FileEdit } from '../../plan/create.js';
 import type { Prompter } from '../../prompts/prompter.js';
-import { createWorkspacePackageFiles } from '../create/templates.js';
+import { createWorkspacePackageFiles, projectOwner } from '../create/templates.js';
 import type { ProjectAdditions } from './additions.js';
 import { applyAdditions, type AddStatus } from './apply.js';
 
@@ -69,20 +69,6 @@ export function createRegistrationEdit(workspace: Workspace, directory: string):
   };
 }
 
-function createNewFileEdit(path: string, content: string): FileEdit {
-
-  return {
-    path,
-    transform: (current) => {
-      if (current !== undefined) {
-        throw new Error(`${path} already exists`);
-      }
-
-      return content;
-    },
-  };
-}
-
 // A file at the path, or a directory with entries, leaves no room for the package.
 async function isOccupied(path: string) {
   if (!existsSync(path)) {
@@ -124,13 +110,11 @@ export async function addPackage(additions: ProjectAdditions, name: string, prom
   }
 
   const isRegistered = isWorkspaceMember(workspace.patterns, directory);
-  const edits = [
-    ...createWorkspacePackageFiles(name, { hasBuildScript: true }).map((file) => createNewFileEdit(`${directory}/${file.path}`, file.content)),
-    ...(isRegistered ? [] : [createRegistrationEdit(workspace, directory)]),
-  ];
+  const files = createWorkspacePackageFiles(name, { hasBuildScript: true }).map((file) => ({ path: `${directory}/${file.path}`, owner: projectOwner, content: file.content }));
+  const edits = isRegistered ? [] : [createRegistrationEdit(workspace, directory)];
   const targets = [...config.targets, { path: directory, kind: 'library' as const, template: 'typescript-library', options: {} }];
   const editRetryHint = `Remove what was created in ${directory}, then run jfdevelops add package ${name} again.`;
-  const status = await applyAdditions(additions, { edits, targets, editRetryHint }, prompter);
+  const status = await applyAdditions(additions, { files, edits, targets, editRetryHint }, prompter);
 
   if (status === 'complete') {
     prompter.outro(`Created ${name} in ${directory}. Run ${config.project.packageManager} install to link it into the workspace.`);
