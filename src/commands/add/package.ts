@@ -125,7 +125,7 @@ export async function addPackage(additions: ProjectAdditions, name: string, prom
 
   const isRegistered = isWorkspaceMember(workspace.patterns, directory);
   const edits = [
-    ...createWorkspacePackageFiles(name).map((file) => createNewFileEdit(`${directory}/${file.path}`, file.content)),
+    ...createWorkspacePackageFiles(name, { hasBuildScript: true }).map((file) => createNewFileEdit(`${directory}/${file.path}`, file.content)),
     ...(isRegistered ? [] : [createRegistrationEdit(workspace, directory)]),
   ];
   const targets = [...config.targets, { path: directory, kind: 'library' as const, template: 'typescript-library', options: {} }];

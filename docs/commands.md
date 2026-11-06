@@ -12,6 +12,8 @@ Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` onc
 | `add skill <name>` | Enable one skill from an installed package | Yes |
 | `add addon <name>` | Adopt or install an integration and offer its skills | Yes |
 | `add package <name>` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks | Yes |
+| `update [directory]` | Upgrade the CLI and refresh managed project setup | Yes |
+| `skills update [skills...]` | Update all enabled skills or selected names from published packages | Yes |
 | `skills [directory]` | Report whether enabled skills match installed versions | No |
 | `skills sync [directory]` | Update skill copies to the installed versions | Yes |
 
@@ -113,8 +115,12 @@ Read-only comparison of installed `.agents/skills` resources against the registe
 
 `--check` exits with code 1 when compared skills differ; otherwise differences are informational. Comparison failures always exit with code 1. No skills installed, or no differences among compared skills, exits with code 0. Local edits count as differences. This command does not install updates.
 
-## `jfdevelops update [skills...]`
+## `jfdevelops skills update [skills...]`
 
 Updates all enabled skills by default, or only the named skills. Use `-d, --directory <path>` to choose a project. The command previews source-package upgrades to `latest`, asks for confirmation, then reviews the nested file tree and any locally edited skill copies before synchronizing them. Package upgrades change the manifest and lockfile even if the later file review is declined. Multiple skills from the same package share one package upgrade per scope. Local workspace/file sources are not upgraded from the registry. Optional source dependencies must be updated with the package manager before `skills sync`.
 
 `init` installs the CLI and the shared skills package directly as development dependencies. Planned file changes use a nested tree with folder/file icons and action labels.
+
+## `jfdevelops update [directory]`
+
+Upgrades the project's `@jfdevelops/cli` dependency to the latest published release, then runs that installed release to refresh the project. It updates enabled skills, runs init to review newly detected integrations/skills, and regenerates tooling from the project's recorded templates and formatter. The planned file tree and local-edit conflicts are reviewed before tooling is written. Template entry/test stubs are only added when missing; existing application source, tests, README files, workspace membership, and unrelated manifest entries are preserved. Adopted projects without template metadata keep their existing build tooling. Dependencies are installed after tooling changes. Package and file updates already applied are retained if a later step is cancelled or fails; rerun update to retry.

@@ -92,19 +92,22 @@ const packageCompiler = {
 };
 
 // `vp run` caches these tasks and first builds the workspace packages a package depends on.
-function createPackageTasks(buildCommand: string) {
+function createPackageTasks(buildCommand: string, buildTaskName = 'build') {
+  const buildTaskKey = buildTaskName === 'build' ? buildTaskName : JSON.stringify(buildTaskName);
   const dependencyBuilds = "dependsOn: [{ task: 'build', from: ['dependencies', 'devDependencies'] }]";
 
   return `  run: {
     tasks: {
-      build: { command: '${buildCommand}', ${dependencyBuilds} },
+      ${buildTaskKey}: { command: '${buildCommand}', ${dependencyBuilds} },
       typecheck: { command: 'tsc', ${dependencyBuilds} },
       test: { command: 'vp test run', ${dependencyBuilds} },
     },
   },`;
 }
 
-const libraryViteConfig = `import { defineConfig } from 'vite-plus';
+function createLibraryViteConfig(buildTaskName: string) {
+
+  return `import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
   pack: {
@@ -119,9 +122,10 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
   },
-${createPackageTasks('vp pack')}
+${createPackageTasks('vp pack', buildTaskName)}
 });
 `;
+}
 
 const appViteConfig = `import { defineConfig } from 'vite-plus';
 
@@ -274,7 +278,7 @@ function createLibraryFiles(projectName: string, template: ProjectTemplate, cliV
  * Files for a library package inside a workspace, laid out like the jfdevelops libraries: sources in `src` and tests in
  * `test`, built with `vp pack` and tested with `vp test`. Formatting, linting, and the CLI dependency stay at the workspace root.
  */
-export function createWorkspacePackageFiles(packageName: string, { isPrivate = false } = {}): PackageFile[] {
+export function createWorkspacePackageFiles(packageName: string, { isPrivate = false, hasBuildScript = false } = {}): PackageFile[] {
   const manifest = {
     name: packageName,
     ...(isPrivate ? { private: true } : {}),
@@ -282,7 +286,7 @@ export function createWorkspacePackageFiles(packageName: string, { isPrivate = f
     type: 'module',
     files: ['dist'],
     exports: { '.': { types: './dist/index.d.mts', import: './dist/index.mjs' }, './package.json': './package.json' },
-    scripts: { prepack: 'vp pack' },
+    scripts: { ...(hasBuildScript ? { build: 'vp run package-build' } : {}), prepack: 'vp pack' },
     devDependencies: { typescript: typescriptVersion, 'vite-plus': vitePlusVersion },
   };
 
@@ -291,7 +295,7 @@ export function createWorkspacePackageFiles(packageName: string, { isPrivate = f
     createPackageFile('package.json', manifest),
     createPackageFile('tsconfig.json', packageCompiler),
     createPackageFile('tsconfig.build.json', createPackageBuildCompiler({ declaration: true, declarationMap: true })),
-    { path: 'vite.config.ts', content: libraryViteConfig },
+    { path: 'vite.config.ts', content: createLibraryViteConfig(hasBuildScript ? 'package-build' : 'build') },
     { path: 'src/index.ts', content: libraryEntry },
     { path: 'test/index.test.ts', content: libraryTest },
   ];

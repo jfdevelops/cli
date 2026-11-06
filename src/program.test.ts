@@ -249,8 +249,8 @@ describe('update command', () => {
     const { prompter, transcript } = createScriptedPrompter(() => true);
 
     fixtures.push(fixture);
-    await runProgram(['update', 'jf-git', '--directory', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
-    expect(transcript[0]).toBe('intro: jfdevelops update');
+    await runProgram(['skills', 'update', 'jf-git', '--directory', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
+    expect(transcript[0]).toBe('intro: jfdevelops skills update');
     expect(transcript).toContain('error: No jfdevelops.json found. Run jfdevelops init first.');
     expect(process.exitCode).toBe(1);
   });

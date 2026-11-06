@@ -9,7 +9,7 @@ type UpdateOptions = { directory: string; prompter: Prompter; skillNames?: strin
 
 // Refresh source packages first, then use the normal managed-file review for the selected copies.
 export async function runSkillsUpdate({ directory, prompter, skillNames, installPackage: install = installPackage }: UpdateOptions): Promise<SkillsSyncStatus> {
-  prompter.intro('jfdevelops update');
+  prompter.intro('jfdevelops skills update');
 
   try {
     const { project, config } = await loadConfiguredProject(directory);

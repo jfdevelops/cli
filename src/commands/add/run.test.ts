@@ -302,7 +302,7 @@ describe('add package', () => {
 
     expect(status).toBe('complete');
     expect(transcript.at(-1)).toBe('outro: Created @acme/utils in packages/utils. Run pnpm install to link it into the workspace.');
-    expect(JSON.parse(await readText(projectRoot, 'packages/utils/package.json'))).toMatchObject({ name: '@acme/utils', type: 'module' });
+    expect(JSON.parse(await readText(projectRoot, 'packages/utils/package.json'))).toMatchObject({ name: '@acme/utils', type: 'module', scripts: { build: 'vp run package-build' } });
     expect(existsSync(join(projectRoot, 'packages/utils/src/index.ts'))).toBe(true);
     expect(await readText(projectRoot, 'pnpm-workspace.yaml')).toBe(workspaceBefore);
     expect((await readProjectConfig(projectRoot))?.targets).toContainEqual({ path: 'packages/utils', kind: 'library', template: 'typescript-library', options: {} });
