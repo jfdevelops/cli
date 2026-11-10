@@ -3,7 +3,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { initializeProjectGit, isGitRemoteUrl } from './lifecycle.js';
+import * as processRunner from '../../process/run.js';
+import { formatCreatedProject, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject } from './lifecycle.js';
 
 const directories: string[] = [];
 
@@ -15,8 +16,37 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+});
+
+describe('project formatting', () => {
+  it.each([
+    ['prettier', 'pnpm'], ['biome', 'pnpm'], ['prettier', 'npm'], ['biome', 'npm'],
+  ] as const)('ignores unsupported files with %s via %s in write and check modes', async (formatter, packageManager) => {
+    const runCommand = vi.spyOn(processRunner, 'runCommand').mockResolvedValue('');
+    const options = { directory: '/project', packageManager, formatter, paths: ['.gitignore', '.prettierignore', 'src/index.ts'] };
+    const ignoreFlag = formatter === 'prettier' ? '--ignore-unknown' : '--files-ignore-unknown=true';
+
+    await formatCreatedProject(options);
+    await verifyCreatedProject(options);
+
+    const formatterCalls = runCommand.mock.calls.filter(([, args]) => args.includes(formatter));
+
+    expect(formatterCalls).toHaveLength(2);
+
+    for (const [command, args, execution] of formatterCalls) {
+      expect(command).toBe(packageManager);
+      expect(args.slice(0, packageManager === 'npm' ? 2 : 1)).toEqual(packageManager === 'npm' ? ['exec', '--'] : ['exec']);
+      expect(args).toContain(ignoreFlag);
+      expect(args.slice(-3)).toEqual(options.paths);
+      expect(execution).toEqual({ cwd: options.directory });
+    }
+
+    expect(formatterCalls[0]?.[1]).toContain('--write');
+    expect(formatterCalls[1]?.[1]).not.toContain('--write');
+  });
 });
 
 describe('isGitRemoteUrl', () => {

@@ -23,13 +23,15 @@ export type GitIdentityCheck = () => Promise<boolean>;
 const execFileAsync = promisify(execFile);
 
 async function runFormatter(packageManager: PackageManagerName, formatter: FormatterName, paths: string[], directory: string, mode: 'write' | 'check') {
+  const execArguments = packageManager === 'npm' ? ['exec', '--'] : ['exec'];
+
   if (formatter === 'biome') {
-    await runCommand(packageManager, ['exec', 'biome', 'format', ...(mode === 'write' ? ['--write'] : []), ...paths], { cwd: directory });
+    await runCommand(packageManager, [...execArguments, 'biome', 'format', '--files-ignore-unknown=true', ...(mode === 'write' ? ['--write'] : []), ...paths], { cwd: directory });
   } else {
-    await runCommand(packageManager, ['exec', 'prettier', mode === 'write' ? '--write' : '--check', ...paths], { cwd: directory });
+    await runCommand(packageManager, [...execArguments, 'prettier', '--ignore-unknown', mode === 'write' ? '--write' : '--check', ...paths], { cwd: directory });
   }
 
-  await runCommand(packageManager, ['exec', 'eslint', ...(mode === 'write' ? ['--fix'] : []), ...paths], { cwd: directory });
+  await runCommand(packageManager, [...execArguments, 'eslint', ...(mode === 'write' ? ['--fix'] : []), ...paths], { cwd: directory });
 }
 
 // Applies the selected formatter and style policy only to the paths create wrote or overwrote.
