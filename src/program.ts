@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { runAdd, runAddList, type AdditionKind } from './commands/add/run.js';
 import type { PackedFileLister } from './authoring/packed-files.js';
 import { parseAgentsFlag, parseCommaList, parseConflictPolicy, parseEnumFlag } from './commands/flags.js';
@@ -6,13 +6,17 @@ import { runCreate, type CreateAnswers } from './commands/create/run.js';
 import { runCreateSkills } from './commands/create/skills.js';
 import type { FormatterName, ProjectKind } from './commands/create/templates.js';
 import { runInit, type InitAnswers } from './commands/init/run.js';
+import { runSkillsOutdated } from './commands/skills/outdated.js';
 import { runSkillsStatus } from './commands/skills/status.js';
 import { runSkillsSync } from './commands/skills/sync.js';
+import { runSkillsUpdate } from './commands/skills/update.js';
+import { runUpdate } from './commands/update/run.js';
 import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
 import type { PackageManagerName } from './detect/package-manager.js';
 import { createClackPrompter } from './prompts/clack.js';
 import { createLoggingPrompter } from './prompts/logging.js';
 import type { Prompter } from './prompts/prompter.js';
+import type { UpstreamSkills } from './skills/upstream.js';
 
 export type ProgramDependencies = {
   createPrompter: () => Prompter;
@@ -20,6 +24,7 @@ export type ProgramDependencies = {
   installDependency?: DependencyInstaller;
   installPackage?: PackageInstaller;
   listPackedFiles?: PackedFileLister;
+  loadUpstreamSkills?: () => Promise<UpstreamSkills>;
 };
 
 const defaultDependencies: ProgramDependencies = {
@@ -303,6 +308,32 @@ export function createProgram(version: string, dependencies = defaultDependencie
       });
   }
 
+  program
+    .command('update')
+    .description('Upgrade the project CLI and review updates to its managed project setup')
+    .argument('[directory]', 'project directory', '.')
+    .addOption(new Option('--refresh-project').hideHelp())
+    .action(async (directory: string, options: { refreshProject?: boolean }) => {
+      if (!dependencies.isInteractive()) {
+        program.error('jfdevelops update is interactive; run it in a terminal.');
+      }
+
+      const status = await runUpdate({
+        directory,
+        version,
+        prompter: dependencies.createPrompter(),
+        isRefreshingProject: Boolean(options.refreshProject),
+        ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
+        ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+      });
+
+      if (status === 'incomplete' || status === 'failed') {
+        process.exitCode = 1;
+      } else if (status === 'cancelled' && options.refreshProject) {
+        process.exitCode = 2;
+      }
+    });
+
   const skills = program
     .command('skills')
     .description('Show whether enabled skills match the installed package versions')
@@ -312,6 +343,45 @@ export function createProgram(version: string, dependencies = defaultDependencie
       const status = await runSkillsStatus({ directory, prompter: dependencies.createPrompter() });
 
       if (status === 'failed' || (options.check && status === 'out-of-sync')) {
+        process.exitCode = 1;
+      }
+    });
+
+  skills
+    .command('update')
+    .description('Update all enabled skills, or only the named skills, from their latest published source packages')
+    .argument('[skills...]', 'enabled skill names (defaults to all)')
+    .option('-d, --directory <path>', 'project directory', '.')
+    .action(async (skillNames: string[], options: { directory: string }) => {
+      if (!dependencies.isInteractive()) {
+        program.error('jfdevelops skills update is interactive; run it in a terminal.');
+      }
+
+      const status = await runSkillsUpdate({
+        directory: options.directory,
+        skillNames,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
+      });
+
+      if (status === 'incomplete' || status === 'failed') {
+        process.exitCode = 1;
+      }
+    });
+
+  skills
+    .command('outdated')
+    .description('Compare installed skills with jfdevelops/skills on main without changing files')
+    .argument('[directory]', 'project directory', '.')
+    .option('--check', 'exit with code 1 when skills differ from upstream main')
+    .action(async (directory: string, _options: { check?: boolean }, command: Command) => {
+      const status = await runSkillsOutdated({
+        directory,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.loadUpstreamSkills ? { loadUpstream: dependencies.loadUpstreamSkills } : {}),
+      });
+
+      if (status === 'failed' || (command.optsWithGlobals<{ check?: boolean }>().check && status === 'outdated')) {
         process.exitCode = 1;
       }
     });

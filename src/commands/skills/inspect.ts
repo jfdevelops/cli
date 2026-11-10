@@ -74,6 +74,7 @@ function getSkillStatus(skill: EnabledSkill, candidates: CatalogSkill[], plan: C
 export type InspectSkillsOptions = {
   // Skills whose managed files should be deleted.
   removedSkills?: string[];
+  skillNames?: string[];
   // Installed version to use for skills with more than one installed version, keyed by skill name.
   selectedVersions?: Record<string, string>;
 };
@@ -92,7 +93,7 @@ export async function loadConfiguredProject(directory: string, pendingAddons: st
 
   const scopes = ['.', ...config.targets.map((target) => target.path)];
   const integrations = await detectIntegrations(project.root, scopes);
-  const discovered = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
+  const discovered = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(project.root), scope: '.', required: true }]);
 
   const addons = [...config.addons, ...pendingAddons.map((name) => ({ name, options: {} }))];
 
@@ -109,7 +110,7 @@ export function findSkillCandidates(skill: EnabledSkill, catalogSkills: CatalogS
  * bring unchanged copies up to date, delete files of removed skills, and refresh the AGENTS.md skill
  * list; skills whose source is missing, or ambiguous without a selected version, are left untouched.
  */
-export async function inspectSkills(directory: string, { removedSkills = [], selectedVersions = {} }: InspectSkillsOptions = {}) {
+export async function inspectSkills(directory: string, { removedSkills = [], selectedVersions = {}, skillNames }: InspectSkillsOptions = {}) {
   const { project, config, integrations, catalog } = await loadConfiguredProject(directory);
   const candidatesByName = new Map(config.skills.map((skill) => [skill.name, findSkillCandidates(skill, catalog.skills)]));
   const removed = new Set(removedSkills);
@@ -118,7 +119,7 @@ export async function inspectSkills(directory: string, { removedSkills = [], sel
     const selectedVersion = selectedVersions[skill.name];
     const source = candidates.length === 1 ? candidates[0] : candidates.find((candidate) => candidate.source.version === selectedVersion);
 
-    return source && !removed.has(skill.name) ? [source] : [];
+    return source && (!skillNames || skillNames.includes(skill.name)) && !removed.has(skill.name) ? [source] : [];
   });
   const sourceNames = new Set(sources.map((source) => source.name));
   const keptSkills = config.skills.filter((skill) => !sourceNames.has(skill.name) && !removed.has(skill.name));

@@ -30,6 +30,8 @@ export type ChangePlanOptions = {
   edits?: FileEdit[];
   // Owners whose complete file set is given; only their missing managed files are removed.
   owners: ManagedFileOwner[];
+  // Additive plans leave the owners' other managed files in place.
+  isRemovingMissingFiles?: boolean;
 };
 
 export class ChangePlanError extends Error {
@@ -187,14 +189,14 @@ function computeManagedFiles(managedFiles: ManagedFile[], changes: PlannedChange
  * Compares the files the CLI wants to own with the project on disk and the recorded managed files.
  * Reads only; nothing is written until a plan is applied.
  */
-export async function createChangePlan({ projectRoot, managedFiles = [], files, edits = [], owners }: ChangePlanOptions) {
+export async function createChangePlan({ projectRoot, managedFiles = [], files, edits = [], owners, isRemovingMissingFiles = true }: ChangePlanOptions) {
   const ownerKeys = new Set(owners.map((owner) => getOwnerKey(owner)));
   const records = new Map(managedFiles.map((file) => [file.path, file]));
 
   validateFiles([...files, ...edits], ownerKeys, records);
 
   const desiredPaths = new Set(files.map((file) => file.path));
-  const removals = managedFiles.filter((record) => ownerKeys.has(getOwnerKey(record.owner)) && !desiredPaths.has(record.path));
+  const removals = isRemovingMissingFiles ? managedFiles.filter((record) => ownerKeys.has(getOwnerKey(record.owner)) && !desiredPaths.has(record.path)) : [];
   const desiredChanges = files.map(async (file) =>
     planDesiredFile(file, records.get(file.path), await readCurrentFile(join(projectRoot, file.path)), ownerKeys),
   );

@@ -19,16 +19,16 @@ describe('renderFileTree', () => {
 
     expect(tree).toBe(
       [
-        'acme/',
-        '├── .agents/ (2 files)',
-        '├── .claude/ (1 files)',
-        '├── apps/',
-        '│   └── web/',
-        '│       ├── src/',
-        '│       │   └── index.ts',
-        '│       └── package.json',
-        '├── README.md',
-        '└── package.json',
+        '📁 acme/',
+        '├── 📁 .agents/ (2 files)',
+        '├── 📁 .claude/ (1 files)',
+        '├── 📁 apps/',
+        '│   └── 📁 web/',
+        '│       ├── 📁 src/',
+        '│       │   └── 📄 index.ts',
+        '│       └── 📄 package.json',
+        '├── 📄 README.md',
+        '└── 📄 package.json',
       ].join('\n'),
     );
   });
@@ -43,21 +43,21 @@ describe('renderFileTree', () => {
 
     expect(tree).toBe(
       [
-        'acme/',
-        '├── .claude/',
-        '│   └── skills/',
-        '│       └── jf-git/',
-        '│           ├── references/',
-        '│           │   └── commits.md [create]',
-        '│           └── SKILL.md [create]',
-        '├── .github/',
-        '│   └── copilot-instructions.md [edit]',
-        '└── jfdevelops.json [conflict]',
+        '📁 acme/',
+        '├── 📁 .claude/',
+        '│   └── 📁 skills/',
+        '│       └── 📁 jf-git/',
+        '│           ├── 📁 references/',
+        '│           │   └── 📄 commits.md [create]',
+        '│           └── 📄 SKILL.md [create]',
+        '├── 📁 .github/',
+        '│   └── 📄 copilot-instructions.md [edit]',
+        '└── 📄 jfdevelops.json [conflict]',
       ].join('\n'),
     );
   });
 
   it('draws a root with no files', () => {
-    expect(renderFileTree('empty', [])).toBe('empty/');
+    expect(renderFileTree('empty', [])).toBe('📁 empty/');
   });
 });

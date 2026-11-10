@@ -1,5 +1,28 @@
 # @jfdevelops/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- d3a04a2: Add skills update for all or selected enabled skills and a project update command that upgrades the CLI and refreshes recorded template tooling, integrations, and skills, install the shared skills package directly during init, and show planned file changes as a nested tree with folder and file icons.
+- d3a04a2: Workspace packages now have stub sources in `src/` and stub tests in `test/`, and build, type check, and test through cached Vite+ tasks. New workspaces also get a CI workflow that runs these tasks only in the packages a change affects and the packages that depend on them, reusing cached results between runs.
+
+## 0.6.0
+
+### Minor Changes
+
+- 4d51e7d: Add skills outdated to compare installed skill resources with jfdevelops/skills on main, with a --check exit code for CI.
+
+### Patch Changes
+
+- 17cef01: Preselect installed integrations during init and offer a Select all option for adopting every detected integration.
+
+## 0.5.0
+
+### Minor Changes
+
+- 895a11e: `init` and `create` now ask which coding agents should load the skills (Claude Code, Codex, Cursor, GitHub Copilot) and record the choice in `jfdevelops.json`. Each skill is installed once in `.agents/skills`; Claude Code gets a small stub per skill in `.claude/skills` and a `CLAUDE.md` pointer instead of a full copy, except for skills that use Claude Code's argument substitution, `${CLAUDE_*}` variables, or command injection, which keep a full copy there. The next `skills sync` in an existing project replaces the old `.claude/skills` copies with stubs and removes the `.cursor/skills` and `.github/skills` copies.
+
 ## 0.4.0
 
 ### Minor Changes

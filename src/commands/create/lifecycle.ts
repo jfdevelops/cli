@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { runCommand } from '../../process/run.js';
@@ -12,8 +13,10 @@ export type ProjectFormatOptions = {
   paths: string[];
 };
 
+// isWorkspace marks a workspace root, whose packages are also type checked and tested.
+export type ProjectVerifier = (options: ProjectFormatOptions & { isWorkspace?: boolean }) => Promise<void>;
 export type ProjectFormatter = (options: ProjectFormatOptions) => Promise<void>;
-export type ProjectVerifier = (options: ProjectFormatOptions) => Promise<void>;
+export type PackageManagerVersionReader = (packageManager: PackageManagerName) => Promise<string>;
 export type GitInitializer = (directory: string, remoteUrl?: string) => Promise<void>;
 export type GitIdentityCheck = () => Promise<boolean>;
 
@@ -39,12 +42,29 @@ export async function formatCreatedProject({ directory, packageManager, formatte
   await runFormatter(packageManager, formatter, paths, directory, 'write');
 }
 
-export async function verifyCreatedProject({ directory, packageManager, formatter, paths }: ProjectFormatOptions) {
+export async function verifyCreatedProject({ directory, packageManager, formatter, paths, isWorkspace = false }: ProjectFormatOptions & { isWorkspace?: boolean }) {
   if (paths.length > 0) {
     await runFormatter(packageManager, formatter, paths, directory, 'check');
   }
 
-  await runCommand(packageManager, ['run', 'build'], { cwd: directory });
+  const scripts = isWorkspace ? ['typecheck', 'test', 'build'] : ['build'];
+
+  for (const script of scripts) {
+    await runCommand(packageManager, ['run', script], { cwd: directory });
+  }
+}
+
+// The installed version, such as 10.28.1, recorded so Turborepo and CI use the package manager the project was created with.
+// It is read from the home directory because pnpm and corepack switch versions inside a project that declares one.
+export async function readPackageManagerVersion(packageManager: PackageManagerName) {
+  const output = await runCommand(packageManager, ['--version'], { cwd: homedir(), captureOutput: true });
+  const version = output.trim().match(/^\d+\.\d+\.\d+\S*$/)?.[0];
+
+  if (!version) {
+    throw new Error(`Could not read the ${packageManager} version from: ${output.trim()}`);
+  }
+
+  return version;
 }
 
 // Resolves the author and committer the way the foundation commit will, including environment variables.

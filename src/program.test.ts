@@ -237,3 +237,62 @@ describe('skills command', () => {
     expect(error).toMatchObject({ exitCode: 1 });
   });
 });
+
+describe('skills outdated command', () => {
+  it.each([
+    [[], 'different', undefined],
+    [['--check'], 'different', 1],
+    [['--check'], 'current', undefined],
+  ])('supports non-interactive comparisons with %j and %s content', async (flags, content, exitCode) => {
+    const fixture = await createFixture({ '.agents/skills/jf-git/SKILL.md': content });
+
+    fixtures.push(fixture);
+
+    const { prompter, transcript } = createScriptedPrompter(() => { throw new Error('Must not prompt'); });
+    const { error } = await runProgram(['skills', 'outdated', fixture.root, ...flags], {
+      createPrompter: () => prompter,
+      isInteractive: () => false,
+      loadUpstreamSkills: async () => ({ revision: 'abc123', skills: new Map([['jf-git', new Map([['SKILL.md', Buffer.from('current')]])]]) }),
+    });
+
+    expect(error).toBeUndefined();
+    expect(process.exitCode).toBe(exitCode);
+    expect(transcript).toContain('intro: jfdevelops skills outdated');
+  });
+
+  it('returns a failing exit code on network errors even without --check', async () => {
+    const fixture = await createFixture({ '.agents/skills/jf-git/SKILL.md': 'current' });
+
+    fixtures.push(fixture);
+
+    const { prompter } = createScriptedPrompter(() => false);
+
+    await runProgram(['skills', 'outdated', fixture.root], {
+      createPrompter: () => prompter,
+      isInteractive: () => false,
+      loadUpstreamSkills: async () => { throw new Error('network unavailable'); },
+    });
+
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+describe('update command', () => {
+  it('routes selected names and the project directory to the update flow', async () => {
+    const fixture = await createFixture({ 'package.json': { name: 'bare' } });
+    const { prompter, transcript } = createScriptedPrompter(() => true);
+
+    fixtures.push(fixture);
+    await runProgram(['skills', 'update', 'jf-git', '--directory', fixture.root], { createPrompter: () => prompter, isInteractive: () => true });
+    expect(transcript[0]).toBe('intro: jfdevelops skills update');
+    expect(transcript).toContain('error: No jfdevelops.json found. Run jfdevelops init first.');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('requires an interactive terminal before updating packages', async () => {
+    const { output, error } = await runProgram(['update'], { createPrompter: () => createScriptedPrompter(() => true).prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops update is interactive');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+});

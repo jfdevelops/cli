@@ -1,6 +1,7 @@
 import { parseProjectConfig } from '../../config/read.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { describeDevelopmentDependency, installDevelopmentDependency, type DependencyInstaller } from '../../dependencies/install.js';
+import { readPackageManifest } from '../../detect/manifest.js';
 import { detectIntegrations } from '../../detect/integration.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { detectProject, type ProjectDetection } from '../../detect/project.js';
@@ -40,10 +41,10 @@ export type InitStatus = 'complete' | 'incomplete' | 'unchanged' | 'cancelled' |
 
 const packageManagers: PackageManagerName[] = ['pnpm', 'npm', 'yarn', 'bun'];
 
-function hasCliDependency(project: ProjectDetection) {
+function hasDependency(project: ProjectDetection, packageName: string) {
   const { dependencies, devDependencies, optionalDependencies } = project.manifest;
 
-  return '@jfdevelops/cli' in { ...dependencies, ...devDependencies, ...optionalDependencies };
+  return packageName in { ...dependencies, ...devDependencies, ...optionalDependencies };
 }
 
 async function choosePackageManager(
@@ -113,7 +114,7 @@ async function adoptProject({
   const addons = isNonInteractive
     ? resolveIntegrations(integrations, project.config?.addons ?? [], answers?.addons, prompter)
     : await confirmIntegrations(integrations, project.config?.addons ?? [], prompter);
-  const discoveredCatalog = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
+  const discoveredCatalog = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(project.root), scope: '.', required: true }]);
   const catalog = filterAddonSkills(discoveredCatalog, integrations, addons);
 
   reportCatalog(catalog, prompter);
@@ -153,10 +154,19 @@ async function adoptProject({
   const configOptions = { existing: project.config, version, name: project.name, packageManager, targets, addons, agents, selectedSkills, missingSourceSkills };
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
   const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(project.config);
-  const needsCliDependency = !hasCliDependency(project);
+  const sharedManifest = await readPackageManifest(findSharedSkillsPackage(project.root));
+
+  if (!sharedManifest?.version) {
+    throw new Error('The shared skills package has no version. Reinstall @jfdevelops/skills and retry init.');
+  }
+
+  const dependencies = [
+    { packageName: '@jfdevelops/cli', version },
+    { packageName: '@jfdevelops/skills', version: sharedManifest.version },
+  ].filter(({ packageName }) => !hasDependency(project, packageName));
   const isWorkspaceRoot = packageManager === 'pnpm' && project.workspace?.source === 'pnpm-workspace.yaml';
 
-  if (!plan.hasChanges && !isConfigChanged && !needsCliDependency) {
+  if (!plan.hasChanges && !isConfigChanged && dependencies.length === 0) {
     prompter.outro('Already up to date. No changes needed.');
 
     return 'unchanged';
@@ -164,8 +174,8 @@ async function adoptProject({
 
   const plannedChanges = [renderPlanTree(project.root, plan, isConfigChanged)];
 
-  if (needsCliDependency) {
-    plannedChanges.push('', `Install development dependency: ${describeDevelopmentDependency(packageManager, '@jfdevelops/cli', version, isWorkspaceRoot)}`);
+  for (const { packageName, version: dependencyVersion } of dependencies) {
+    plannedChanges.push(`Install development dependency: ${describeDevelopmentDependency(packageManager, packageName, dependencyVersion, isWorkspaceRoot)}`);
   }
 
   prompter.note(plannedChanges.join('\n'), 'Planned changes');
@@ -180,12 +190,12 @@ async function adoptProject({
 
   let dependencyError: unknown;
 
-  if (needsCliDependency) {
+  for (const { packageName, version } of dependencies) {
     try {
-      await installDependency({ directory: project.root, packageManager, packageName: '@jfdevelops/cli', version, isWorkspaceRoot });
+      await installDependency({ directory: project.root, packageManager, packageName, version, isWorkspaceRoot });
     } catch (error) {
       dependencyError = error;
-      prompter.error(`Could not install @jfdevelops/cli: ${error instanceof Error ? error.message : String(error)}`);
+      prompter.error(`Could not install ${packageName}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

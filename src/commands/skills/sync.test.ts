@@ -9,6 +9,7 @@ import { createScriptedPrompter, type Question, type Respond } from '../../testi
 import { createSkillDocument, createSkillPackage } from '../../testing/skill-package.js';
 import { runInit } from '../init/run.js';
 import { runSkillsStatus } from './status.js';
+import { runSkillsUpdate } from './update.js';
 import { runSkillsSync } from './sync.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
@@ -258,8 +259,114 @@ describe('runSkillsSync', () => {
     const { prompter, transcript } = createScriptedPrompter(answer((question) => (question.kind === 'confirm' ? false : undefined)));
 
     await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('cancelled');
-    expect(transcript.at(-1)).toBe('cancel: Sync cancelled. No files were changed.');
+    expect(transcript.at(-1)).toBe('cancel: Sync cancelled. No skill copies were changed.');
     expect(await readText(projectRoot, 'jfdevelops.json')).toBe(before);
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).not.toContain('v2');
+  });
+});
+
+describe('runSkillsUpdate', () => {
+  it('explains that completed package upgrades remain after declining the skill file review', async () => {
+    const projectRoot = await createInitializedProject();
+    const before = await readText(projectRoot, '.agents/skills/build-forms/SKILL.md');
+    const { prompter, transcript } = createScriptedPrompter(answer((question) => question.message === 'Apply these changes?' ? false : undefined));
+
+    await expect(runSkillsUpdate({
+      directory: projectRoot,
+      skillNames: ['build-forms'],
+      prompter,
+      installPackage: async () => {
+        await upgradeForms(projectRoot);
+        await writeFile(join(projectRoot, 'pnpm-lock.yaml'), 'updated source package lockfile');
+      },
+    })).resolves.toBe('cancelled');
+    expect(await readText(projectRoot, 'pnpm-lock.yaml')).toBe('updated source package lockfile');
+    expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toBe(before);
+    expect(transcript).toContain('cancel: Sync cancelled. No skill copies were changed.');
+    expect(transcript).toContain('info: Source package upgrades remain installed, including manifest and lockfile changes.');
+    expect(transcript.join('\n')).not.toContain('No files were changed');
+  });
+
+  it('reports a package installation failure without changing skill copies', async () => {
+    const projectRoot = await createInitializedProject();
+    const before = await readText(projectRoot, '.agents/skills/build-forms/SKILL.md');
+
+    await expect(runSkillsUpdate({ directory: projectRoot, prompter: createScriptedPrompter(answer()).prompter, installPackage: async () => { throw new Error('offline'); } })).resolves.toBe('failed');
+    expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toBe(before);
+  });
+
+  it('syncs local package skills without replacing the local dependency with a registry version', async () => {
+    const projectRoot = await createInitializedProject();
+
+    await writeFile(join(projectRoot, 'package.json'), JSON.stringify({ name: 'shop', packageManager: 'pnpm@10.28.1', dependencies: { '@acme/forms': 'workspace:*' } }));
+    await upgradeForms(projectRoot);
+    const installs: string[] = [];
+
+    await expect(runSkillsUpdate({ directory: projectRoot, skillNames: ['build-forms'], prompter: createScriptedPrompter(answer()).prompter, installPackage: async (options) => void installs.push(options.packageName) })).resolves.toBe('complete');
+    expect(installs).toEqual([]);
+    expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
+  });
+
+  it('updates the selected source package and synchronizes only the selected copy', async () => {
+    const projectRoot = await createInitializedProject();
+    const beforeGit = await readText(projectRoot, '.agents/skills/jf-git/SKILL.md');
+    const installs: string[] = [];
+    const { prompter } = createScriptedPrompter(answer());
+    const status = await runSkillsUpdate({
+      directory: projectRoot,
+      skillNames: ['build-forms'],
+      prompter,
+      installPackage: async (options) => {
+        installs.push(options.packageName);
+        expect(options.isDevelopment).toBe(false);
+        await upgradeForms(projectRoot);
+      },
+    });
+
+    expect(status).toBe('complete');
+    expect(installs).toEqual(['@acme/forms@latest']);
+    expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
+    expect(await readText(projectRoot, '.agents/skills/jf-git/SKILL.md')).toBe(beforeGit);
+    expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'build-forms')?.source.version).toBe('2.0.0');
+  });
+
+  it('updates all source packages by default and rejects unknown names before installing', async () => {
+    const projectRoot = await createInitializedProject();
+    const installs: string[] = [];
+    const installPackage = async (options: { packageName: string }) => void installs.push(options.packageName);
+
+    await expect(runSkillsUpdate({ directory: projectRoot, prompter: createScriptedPrompter(answer()).prompter, installPackage })).resolves.toBe('unchanged');
+    expect(installs).toEqual(['@acme/forms@latest', '@jfdevelops/skills@latest']);
+    installs.length = 0;
+    await expect(runSkillsUpdate({ directory: projectRoot, skillNames: ['typo'], prompter: createScriptedPrompter(answer()).prompter, installPackage })).resolves.toBe('failed');
+    expect(installs).toEqual([]);
+  });
+
+  it('does not install packages when the update is declined', async () => {
+    const projectRoot = await createInitializedProject();
+    const installs: string[] = [];
+    const { prompter } = createScriptedPrompter(answer((question) => question.kind === 'confirm' ? false : undefined));
+
+    await expect(runSkillsUpdate({ directory: projectRoot, prompter, installPackage: async (options) => void installs.push(options.packageName) })).resolves.toBe('cancelled');
+    expect(installs).toEqual([]);
+  });
+
+  it('keeps unselected skills untouched even when they share the updated source package', async () => {
+    const projectRoot = await createInitializedProject({
+      ...createSkillPackage(formsPackage, { name: '@acme/forms', version: '1.0.0', skills: ['build-forms', 'validate-forms'] }),
+    });
+    const before = await readText(projectRoot, '.agents/skills/validate-forms/SKILL.md');
+
+    await expect(runSkillsUpdate({
+      directory: projectRoot,
+      skillNames: ['build-forms'],
+      prompter: createScriptedPrompter(answer()).prompter,
+      installPackage: async () => {
+        await upgradeForms(projectRoot);
+        await writeFile(join(projectRoot, formsPackage, 'skills/validate-forms/SKILL.md'), createSkillDocument('validate-forms', 'v2'));
+      },
+    })).resolves.toBe('complete');
+    expect(await readText(projectRoot, '.agents/skills/validate-forms/SKILL.md')).toBe(before);
+    expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'validate-forms')?.source.version).toBe('1.0.0');
   });
 });

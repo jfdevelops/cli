@@ -3,7 +3,7 @@ import { parseProjectConfig } from '../../config/read.js';
 import type { ManagedFile, ProjectConfig } from '../../config/schema.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
-import { createChangePlan, type FileEdit } from '../../plan/create.js';
+import { createChangePlan, type DesiredFile, type FileEdit } from '../../plan/create.js';
 import type { Prompter } from '../../prompts/prompter.js';
 import { getConfiguredAgents } from '../../skills/agents.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
@@ -18,7 +18,9 @@ export type AdditionChanges = {
   skills?: CatalogSkill[];
   addons?: ProjectConfig['addons'];
   targets?: ProjectConfig['targets'];
-  // Targeted edits to project-owned files, such as new package files or workspace registration.
+  // New managed scaffold files; existing project-owned files remain outside this partial plan.
+  files?: DesiredFile[];
+  // Targeted edits to existing files, such as workspace registration.
   edits?: FileEdit[];
   extraSteps?: string[];
   // How to retry when an edit fails; new targets are not recorded then, so the same command can run again.
@@ -38,15 +40,17 @@ export async function applyAdditions(additions: ProjectAdditions, changes: Addit
   const { project, config, catalog } = additions;
   const addedSkills = changes.skills ?? [];
   const agents = getConfiguredAgents(config);
+  const files = [...(await Promise.all(addedSkills.map((skill) => createSkillInstallFiles(skill, agents)))).flat(), ...(changes.files ?? [])];
   const plan = await createChangePlan({
     projectRoot: project.root,
     managedFiles: config.managedFiles,
-    files: (await Promise.all(addedSkills.map((skill) => createSkillInstallFiles(skill, agents)))).flat(),
+    isRemovingMissingFiles: false,
+    files,
     edits: [
       ...createInstructionEdits([...describeEnabledSkills(config.skills, catalog.skills), ...addedSkills], project.agentFiles, agents),
       ...(changes.edits ?? []),
     ],
-    owners: addedSkills.map((skill) => ({ type: 'skill' as const, name: skill.name })),
+    owners: [...addedSkills.map((skill) => ({ type: 'skill' as const, name: skill.name })), ...(changes.files ?? []).map((file) => file.owner)],
   });
 
   function createConfig(managedFiles: ManagedFile[], hasFailedEdits = false) {
@@ -71,7 +75,7 @@ export async function applyAdditions(additions: ProjectAdditions, changes: Addit
   const result = await confirmAndApply({ projectRoot: project.root, plan, prompter, isConfigChanged, extraSteps: changes.extraSteps ?? [] });
 
   const failedPaths = new Set(result.failed.map((file) => file.path));
-  const editPaths = new Set((changes.edits ?? []).map((edit) => edit.path));
+  const editPaths = new Set([...(changes.edits ?? []).map((edit) => edit.path), ...(changes.files ?? []).map((file) => file.path)]);
   const hasFailedEdits = [...failedPaths].some((path) => editPaths.has(path));
   const skillPaths = new Set(plan.changes.filter((change) => change.owner.type === 'skill').map((change) => change.path));
   const hasFailedSkillFiles = [...failedPaths].some((path) => skillPaths.has(path));

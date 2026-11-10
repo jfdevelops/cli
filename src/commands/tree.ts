@@ -65,7 +65,7 @@ function renderChildren(node: TreeNode, prefix: string): string[] {
     const isLast = index === entries.length - 1;
     const summary = child.collapsedFiles === undefined ? '' : ` (${child.collapsedFiles} files)`;
     const tag = child.note === undefined ? '' : ` [${child.note}]`;
-    const label = `${name}${child.isDirectory ? '/' : ''}${summary}${tag}`;
+    const label = `${child.isDirectory ? '📁' : '📄'} ${name}${child.isDirectory ? '/' : ''}${summary}${tag}`;
 
     return [`${prefix}${isLast ? '└── ' : '├── '}${label}`, ...renderChildren(child, `${prefix}${isLast ? '    ' : '│   '}`)];
   });
@@ -74,5 +74,5 @@ function renderChildren(node: TreeNode, prefix: string): string[] {
 /** Draws project-relative file paths as a folder tree under the given root label. */
 export function renderFileTree(rootLabel: string, entries: TreeEntry[], { isCollapsingAgentDirectories = false }: RenderFileTreeOptions = {}) {
 
-  return [`${rootLabel}/`, ...renderChildren(buildTree(entries, isCollapsingAgentDirectories), '')].join('\n');
+  return [`📁 ${rootLabel}/`, ...renderChildren(buildTree(entries, isCollapsingAgentDirectories), '')].join('\n');
 }

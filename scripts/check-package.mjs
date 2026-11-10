@@ -54,7 +54,7 @@ try {
   );
 
   expectCli(['--version'], { status: 0, output: [manifest.version] });
-  expectCli(['--help'], { status: 0, output: ['create [name]', 'init [directory]', 'add [options]', 'skills [options] [directory]'] });
+  expectCli(['--help'], { status: 0, output: ['create [options] [name]', 'init [options] [directory]', 'add [options]', 'skills [options] [directory]'] });
   expectCli(['unknown-command'], { status: 1, output: ["unknown command 'unknown-command'"] });
 
   // Read-only commands work without a terminal and report through their exit codes.
@@ -68,6 +68,8 @@ try {
     [['create'], 'create'],
     [['create', 'skills'], 'create skills'],
     [['init', 'project'], 'init'],
+    [['update', 'project'], 'update'],
+    [['skills', 'update'], 'skills update'],
     [['add', '--directory', 'project'], 'add'],
     [['add', 'skill', 'jf-git', '--directory', 'project'], 'add'],
     [['skills', 'sync', 'project'], 'skills sync'],
