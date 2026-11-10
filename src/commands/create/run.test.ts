@@ -103,6 +103,38 @@ afterEach(async () => {
 });
 
 describe('runCreate', () => {
+  it('creates an app from flags without prompting', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        answers: { kind: 'app' },
+        nonInteractive: { conflicts: 'keep' },
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('complete');
+
+    expect(existsSync(join(destination, 'src/index.ts'))).toBe(true);
+    expect(await readProjectConfig(destination)).toMatchObject({
+      project: { name: 'site', packageManager: 'pnpm' },
+      formatter: 'prettier',
+      targets: [{ path: '.', kind: 'app', template: 'node-app' }],
+    });
+    expect(transcript.some((line) => line.startsWith('? '))).toBe(false);
+    expect(transcript.at(-1)).toContain('outro: Created site in');
+  });
+
   it('creates a reviewed app with required skills, configuration, and the CLI dependency', async () => {
     const fixture = await createFixture({});
     const destination = join(fixture.root, 'site');
@@ -337,9 +369,9 @@ describe('runCreate', () => {
 
     const layout = transcript.find((line) => line.startsWith('note [Project layout]')) ?? '';
 
-    expect(layout).toContain('site/');
+    expect(layout).toContain('📁 site/');
     expect(layout).toContain('├── 📁 apps/');
-    expect(layout).toContain('SKILL.md [create]');
+    expect(layout).toContain('├── 📁 .agents/');
     expect(layout).toContain('Packages build on their own until you link them');
   });
 
@@ -520,7 +552,7 @@ describe('runCreate', () => {
     expect(existsSync(destination)).toBe(false);
   });
 
-  it('refuses a non-empty destination before showing a project plan', async () => {
+  it('creates a project in a non-empty destination and keeps the files that are already there', async () => {
     const fixture = await createFixture({ 'site/keep.txt': 'mine' });
     const destination = join(fixture.root, 'site');
     const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'site' }));
@@ -538,8 +570,114 @@ describe('runCreate', () => {
         initializeGit: async () => undefined,
         checkGitIdentity: async () => true,
       }),
-    ).resolves.toBe('failed');
-    expect(transcript.some((line) => line.startsWith('error: Destination is not empty:'))).toBe(true);
+    ).resolves.toBe('complete');
+    expect(transcript.some((line) => line.startsWith('error:'))).toBe(false);
     expect(await readFile(join(destination, 'keep.txt'), 'utf8')).toBe('mine');
+    expect(existsSync(join(destination, 'package.json'))).toBe(true);
+  });
+
+  it('refuses a destination that already has jfdevelops.json', async () => {
+    const fixture = await createFixture({
+      'site/jfdevelops.json': {
+        schemaVersion: 1,
+        generator: { package: '@jfdevelops/cli', version: '0.1.0' },
+        project: { name: 'site', packageManager: 'pnpm' },
+      },
+    });
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'site' }));
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('failed');
+    expect(transcript.some((line) => line.includes('already has jfdevelops.json'))).toBe(true);
+    expect(existsSync(join(destination, 'package.json'))).toBe(false);
+  });
+
+  it('formats only the files create wrote or overwrote', async () => {
+    const fixture = await createFixture({ 'site/src/index.ts': 'export const kept = 1\n' });
+    const destination = join(fixture.root, 'site');
+    const { prompter } = createScriptedPrompter(answerProject({ text: 'site' }));
+    const formatted: string[] = [];
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async ({ paths }) => {
+          formatted.push(...paths);
+        },
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('complete');
+    expect(formatted).not.toContain('src/index.ts');
+    expect(formatted).toContain('package.json');
+    expect(await readFile(join(destination, 'src/index.ts'), 'utf8')).toBe('export const kept = 1\n');
+  });
+
+  it('asks before replacing a conflicting file in the destination', async () => {
+    const fixture = await createFixture({ 'site/package.json': '{"name":"mine"}\n' });
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'site' }));
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('complete');
+    expect(transcript.find((line) => line.startsWith('note [Planned project]'))).toContain('existing file in the destination differ');
+    expect(transcript.find((line) => line.startsWith('note [Project layout]'))).toContain('package.json [conflict]');
+    // The dependency installer rewrites package.json, so the kept file is checked by content rather than bytes.
+    expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({ name: 'mine' });
+  });
+
+  it('does not initialize Git when the destination is already a repository', async () => {
+    const fixture = await createFixture({ 'site/.git/HEAD': 'ref: refs/heads/main\n' });
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'site' }));
+    const initialized: string[] = [];
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async (directory) => void initialized.push(directory),
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('complete');
+    expect(initialized).toEqual([]);
+    expect(transcript.some((line) => line.startsWith('warn: The destination is already a Git repository'))).toBe(true);
   });
 });

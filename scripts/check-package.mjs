@@ -54,7 +54,7 @@ try {
   );
 
   expectCli(['--version'], { status: 0, output: [manifest.version] });
-  expectCli(['--help'], { status: 0, output: ['create [name]', 'init [directory]', 'add [options]', 'skills [options] [directory]'] });
+  expectCli(['--help'], { status: 0, output: ['create [options] [name]', 'init [options] [directory]', 'add [options]', 'skills [options] [directory]'] });
   expectCli(['unknown-command'], { status: 1, output: ["unknown command 'unknown-command'"] });
 
   // Read-only commands work without a terminal and report through their exit codes.

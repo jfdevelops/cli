@@ -3,23 +3,53 @@ import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { runCommand } from '../../process/run.js';
+import type { FormatterName } from './templates.js';
+
+export type ProjectFormatOptions = {
+  directory: string;
+  packageManager: PackageManagerName;
+  formatter: FormatterName;
+  // Only these project-relative paths are formatted, so kept conflict files stay untouched.
+  paths: string[];
+};
 
 // isWorkspace marks a workspace root, whose packages are also type checked and tested.
-export type ProjectVerifier = (options: { directory: string; packageManager: PackageManagerName; isWorkspace?: boolean }) => Promise<void>;
-export type ProjectFormatter = (options: { directory: string; packageManager: PackageManagerName }) => Promise<void>;
+export type ProjectVerifier = (options: ProjectFormatOptions & { isWorkspace?: boolean }) => Promise<void>;
+export type ProjectFormatter = (options: ProjectFormatOptions) => Promise<void>;
 export type PackageManagerVersionReader = (packageManager: PackageManagerName) => Promise<string>;
 export type GitInitializer = (directory: string, remoteUrl?: string) => Promise<void>;
 export type GitIdentityCheck = () => Promise<boolean>;
 
 const execFileAsync = promisify(execFile);
 
-// Applies the selected formatter and style policy to the generated files once dependencies are installed.
-export async function formatCreatedProject({ directory, packageManager }: Parameters<ProjectFormatter>[0]) {
-  await runCommand(packageManager, ['run', 'format'], { cwd: directory });
+async function runFormatter(packageManager: PackageManagerName, formatter: FormatterName, paths: string[], directory: string, mode: 'write' | 'check') {
+  const execArguments = packageManager === 'npm' ? ['exec', '--'] : ['exec'];
+
+  if (formatter === 'biome') {
+    await runCommand(packageManager, [...execArguments, 'biome', 'format', '--files-ignore-unknown=true', ...(mode === 'write' ? ['--write'] : []), ...paths], { cwd: directory });
+  } else {
+    await runCommand(packageManager, [...execArguments, 'prettier', '--ignore-unknown', mode === 'write' ? '--write' : '--check', ...paths], { cwd: directory });
+  }
+
+  await runCommand(packageManager, [...execArguments, 'eslint', ...(mode === 'write' ? ['--fix'] : []), ...paths], { cwd: directory });
 }
 
-export async function verifyCreatedProject({ directory, packageManager, isWorkspace = false }: Parameters<ProjectVerifier>[0]) {
-  const scripts = isWorkspace ? ['format:check', 'typecheck', 'test', 'build'] : ['format:check', 'build'];
+// Applies the selected formatter and style policy only to the paths create wrote or overwrote.
+export async function formatCreatedProject({ directory, packageManager, formatter, paths }: ProjectFormatOptions) {
+  if (paths.length === 0) {
+
+    return;
+  }
+
+  await runFormatter(packageManager, formatter, paths, directory, 'write');
+}
+
+export async function verifyCreatedProject({ directory, packageManager, formatter, paths, isWorkspace = false }: ProjectFormatOptions & { isWorkspace?: boolean }) {
+  if (paths.length > 0) {
+    await runFormatter(packageManager, formatter, paths, directory, 'check');
+  }
+
+  const scripts = isWorkspace ? ['typecheck', 'test', 'build'] : ['build'];
 
   for (const script of scripts) {
     await runCommand(packageManager, ['run', script], { cwd: directory });

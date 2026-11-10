@@ -1,17 +1,18 @@
-import { mkdir, readdir } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
-import { parseProjectConfig } from '../../config/read.js';
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
+import { parseProjectConfig, projectConfigFileName } from '../../config/read.js';
 import { packageNameSchema } from '../../config/schema.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { describeDevelopmentDependency, installDevelopmentDependency, type DependencyInstaller } from '../../dependencies/install.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
-import { applyChangePlan } from '../../plan/apply.js';
+import { applyChangePlan, type AppliedAction, type ConflictResolution } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
 import { refreshManagedFiles } from '../../plan/refresh.js';
 import { askValidText } from '../../prompts/ask-valid.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
-import { agentNames } from '../../skills/agents.js';
+import { agentNames, type AgentName } from '../../skills/agents.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
@@ -32,14 +33,55 @@ import {
   type ProjectFormatter,
   type ProjectVerifier,
 } from './lifecycle.js';
-import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
-import { createWorkspaceFiles, createWorkspaceTargets } from './workspace.js';
-import { chooseAppWorkspace, chooseLibraryWorkspace } from './workspace-prompt.js';
+import { createTemplateFiles, projectTemplates, type FormatterName, type ProjectKind } from './templates.js';
+import { createWorkspaceFiles, createWorkspaceTargets, type WorkspaceLayout } from './workspace.js';
+import { chooseAppWorkspace, chooseLibraryWorkspace, createAppWorkspaceFromFlags, createLibraryWorkspaceFromFlags } from './workspace-prompt.js';
+
+const writtenActions = new Set<AppliedAction>(['create', 'update', 'edit', 'overwrite']);
+
+// Matches the generated ignore list so skill copies and lockfiles are not reformatted after install.
+function canFormatCreatedPath(path: string) {
+
+  return !(
+    path === projectConfigFileName ||
+    path === 'pnpm-lock.yaml' ||
+    path === 'package-lock.json' ||
+    path === 'yarn.lock' ||
+    path === 'bun.lock' ||
+    path.startsWith('.agents/') ||
+    path.startsWith('.claude/skills/') ||
+    path.startsWith('dist/')
+  );
+}
+
+function listFormatPaths(applied: Array<{ path: string; action: AppliedAction }>) {
+
+  return applied.filter((file) => writtenActions.has(file.action) && canFormatCreatedPath(file.path)).map((file) => file.path);
+}
+
+export type CreateAnswers = {
+  kind: ProjectKind;
+  templateName?: string;
+  packageManager?: PackageManagerName;
+  formatter?: FormatterName;
+  agents?: AgentName[];
+  shouldInitializeGit?: boolean;
+  remoteUrl?: string;
+  monorepo?: boolean;
+  workspace?: boolean;
+  namespace?: string;
+  appName?: string;
+  appsDirectory?: string;
+  packagesDirectory?: string;
+  packages?: string[];
+};
 
 export type CreateOptions = {
   directory?: string;
   version: string;
   prompter: Prompter;
+  answers?: CreateAnswers;
+  nonInteractive?: { conflicts: ConflictResolution };
   installDependency?: DependencyInstaller;
   formatProject?: ProjectFormatter;
   verifyProject?: ProjectVerifier;
@@ -50,28 +92,24 @@ export type CreateOptions = {
 
 export type CreateStatus = 'complete' | 'incomplete' | 'cancelled' | 'failed';
 
+type ProjectSelection = {
+  projectName: string;
+  directory: string;
+  kind: ProjectKind;
+  workspace: WorkspaceLayout | undefined;
+  templateName: string;
+  packageManager: PackageManagerName;
+  formatter: FormatterName;
+  agents: AgentName[];
+  shouldInitializeGit: boolean;
+  remoteUrl?: string;
+};
+
 const packageManagers: PackageManagerName[] = ['pnpm', 'npm', 'yarn', 'bun'];
 
 function getDefaultDirectory(projectName: string) {
 
   return `./${projectName.includes('/') ? projectName.slice(projectName.lastIndexOf('/') + 1) : projectName}`;
-}
-
-async function assertDestinationAvailable(directory: string) {
-  try {
-    const entries = await readdir(directory);
-
-    if (entries.length > 0) {
-      throw new Error(`Destination is not empty: ${directory}`);
-    }
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-
-      return;
-    }
-
-    throw error;
-  }
 }
 
 // A scoped package name such as @acme/site is a name, not a path: the project lives in ./site.
@@ -92,7 +130,102 @@ function parseProjectArgument(argument: string | undefined): { name?: string; di
   return { ...(packageNameSchema.safeParse(name).success ? { name } : {}), directory: argument, suggestedName: name };
 }
 
-async function chooseProject(options: CreateOptions) {
+function resolveTemplateName(kind: ProjectKind, templateName: string | undefined) {
+  const templates = projectTemplates.filter((template) => template.kind === kind);
+  const selected = templateName ?? templates[0]?.name;
+
+  if (!selected || !templates.some((template) => template.name === selected)) {
+    throw new Error(
+      templateName
+        ? `Unknown template: ${templateName}. Use one of: ${templates.map((template) => template.name).join(', ')}.`
+        : `No template is available for ${kind} projects.`,
+    );
+  }
+
+  return selected;
+}
+
+function resolveWorkspaceFromAnswers(projectName: string, answers: CreateAnswers): WorkspaceLayout | undefined {
+  if (answers.kind === 'app') {
+    if (answers.workspace) {
+      throw new Error('--workspace is only valid with --kind library.');
+    }
+
+    return answers.monorepo
+      ? createAppWorkspaceFromFlags({
+          projectName,
+          ...(answers.namespace !== undefined ? { namespace: answers.namespace } : {}),
+          ...(answers.appName !== undefined ? { appName: answers.appName } : {}),
+          ...(answers.appsDirectory !== undefined ? { appsDirectory: answers.appsDirectory } : {}),
+          ...(answers.packagesDirectory !== undefined ? { packagesDirectory: answers.packagesDirectory } : {}),
+          ...(answers.packages !== undefined ? { packages: answers.packages } : {}),
+        })
+      : undefined;
+  }
+
+  if (answers.monorepo) {
+    throw new Error('--monorepo is only valid with --kind app.');
+  }
+
+  return answers.workspace
+    ? createLibraryWorkspaceFromFlags({
+        projectName,
+        ...(answers.namespace !== undefined ? { namespace: answers.namespace } : {}),
+        ...(answers.packagesDirectory !== undefined ? { packagesDirectory: answers.packagesDirectory } : {}),
+        ...(answers.packages !== undefined ? { packages: answers.packages } : {}),
+      })
+    : undefined;
+}
+
+function resolveProjectFromAnswers(options: CreateOptions, answers: CreateAnswers): ProjectSelection {
+  const argument = parseProjectArgument(options.directory);
+  const projectName = argument.name ?? argument.suggestedName;
+
+  if (!projectName) {
+    throw new Error('Pass a project name or directory argument when creating a project non-interactively.');
+  }
+
+  const nameResult = packageNameSchema.safeParse(projectName);
+
+  if (!nameResult.success) {
+    throw new Error(`Invalid package name: ${projectName}`);
+  }
+
+  if (answers.remoteUrl !== undefined && answers.shouldInitializeGit === false) {
+    throw new Error('--remote requires Git initialization; omit --no-git or pass --git.');
+  }
+
+  if (answers.remoteUrl !== undefined && !isGitRemoteUrl(answers.remoteUrl)) {
+    throw new Error(`That is not a Git remote URL: ${answers.remoteUrl}. Use an https://, ssh://, or git@host:path URL.`);
+  }
+
+  const directory = resolve(argument.directory ?? getDefaultDirectory(projectName));
+  const packageManager = answers.packageManager ?? 'pnpm';
+
+  if (!packageManagers.includes(packageManager)) {
+    throw new Error(`Unknown package manager: ${packageManager}. Use one of: ${packageManagers.join(', ')}.`);
+  }
+
+  return {
+    projectName,
+    directory,
+    kind: answers.kind,
+    workspace: resolveWorkspaceFromAnswers(projectName, answers),
+    templateName: resolveTemplateName(answers.kind, answers.templateName),
+    packageManager,
+    formatter: answers.formatter ?? 'prettier',
+    agents: answers.agents ?? [...agentNames],
+    shouldInitializeGit: answers.shouldInitializeGit ?? true,
+    ...(answers.remoteUrl !== undefined ? { remoteUrl: answers.remoteUrl } : {}),
+  };
+}
+
+async function chooseProject(options: CreateOptions): Promise<ProjectSelection> {
+  if (options.answers) {
+
+    return resolveProjectFromAnswers(options, options.answers);
+  }
+
   const { prompter } = options;
   const argument = parseProjectArgument(options.directory);
   const projectName = argument.name ?? (await prompter.text({ message: 'What is the package name?', defaultValue: argument.suggestedName ?? 'my-project' })).trim();
@@ -172,14 +305,25 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   } = options;
   const selection = await chooseProject(options);
 
+  if (existsSync(join(selection.directory, projectConfigFileName))) {
+    throw new Error(
+      `Destination already has ${projectConfigFileName}. Use jfdevelops init to adopt an existing project, or choose a directory without one.`,
+    );
+  }
+
   if (selection.shouldInitializeGit && !(await checkGitIdentity())) {
     prompter.warn('Git has no author name and email configured, so the foundation commit will be skipped. Set user.name and user.email, then commit the project yourself.');
     selection.shouldInitializeGit = false;
   }
 
-  const remoteUrl = selection.shouldInitializeGit ? await chooseRemoteUrl(prompter) : undefined;
+  if (selection.shouldInitializeGit && existsSync(join(selection.directory, '.git'))) {
+    prompter.warn('The destination is already a Git repository, so Git will not be initialized. Commit the new files yourself.');
+    selection.shouldInitializeGit = false;
+  }
 
-  await assertDestinationAvailable(selection.directory);
+  const remoteUrl = selection.shouldInitializeGit
+    ? (options.answers ? selection.remoteUrl : await chooseRemoteUrl(prompter))
+    : undefined;
 
   const catalog = await buildSkillCatalog(selection.directory, [], [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
   const selectedSkills = catalog.skills;
@@ -220,8 +364,12 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
   const plannedChanges: string[] = [];
 
+  if (plan.conflicts.length > 0) {
+    plannedChanges.push(`${plan.conflicts.length} existing file${plan.conflicts.length === 1 ? '' : 's'} in the destination differ from the plan; you choose what to do with each.`);
+  }
+
   plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version, Boolean(workspace))}`);
-  plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then ${workspace ? 'format:check, typecheck, test, and build' : 'format:check and build'}`);
+  plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then ${workspace ? 'typecheck, test, and build' : 'build'}`);
 
   if (selection.shouldInitializeGit) {
     plannedChanges.push('Initialize Git on main and create chore(init): initialize project');
@@ -231,14 +379,16 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     }
   }
 
-  const layoutNote = renderFileTree(basename(selection.directory), listPlannedEntries(plan, true));
+  // Everything in a new project is created, so only files that differ from that are tagged.
+  const layoutEntries = [...listPlannedEntries(plan, false), { path: 'jfdevelops.json' }].map(({ path, note }) => ({ path, ...(note === 'create' ? {} : { note }) }));
+  const layoutNote = renderFileTree(basename(selection.directory), layoutEntries, { isCollapsingAgentDirectories: true });
 
   prompter.note(workspace ? `${layoutNote}\n\nPackages build on their own until you link them with workspace dependencies.` : layoutNote, 'Project layout');
   prompter.note(plannedChanges.join('\n'), 'Planned project');
 
-  const resolutions = await resolveConflicts(plan, prompter);
+  const resolutions = await resolveConflicts(plan, prompter, options.nonInteractive?.conflicts);
 
-  if (!(await prompter.confirm({ message: 'Create this project?', initialValue: true }))) {
+  if (!options.nonInteractive && !(await prompter.confirm({ message: 'Create this project?', initialValue: true }))) {
     throw new PromptCancelledError('Declined');
   }
 
@@ -263,10 +413,16 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   // Installing rewrites package.json, so generated files are recorded as they are afterwards.
   let managedFiles = await refreshManagedFiles(selection.directory, result.managedFiles, (file) => file.owner.type === 'project');
   let verificationError: unknown;
+  const formatPaths = listFormatPaths(result.applied);
 
   if (result.isComplete && !dependencyError) {
     try {
-      await formatProject({ directory: selection.directory, packageManager: selection.packageManager });
+      await formatProject({
+        directory: selection.directory,
+        packageManager: selection.packageManager,
+        formatter: selection.formatter,
+        paths: formatPaths,
+      });
       managedFiles = await refreshManagedFiles(selection.directory, managedFiles, (file) => file.owner.type === 'project');
     } catch (error) {
       verificationError = error;
@@ -278,7 +434,13 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
 
   if (result.isComplete && !dependencyError && !verificationError) {
     try {
-      await verifyProject({ directory: selection.directory, packageManager: selection.packageManager, isWorkspace: Boolean(workspace) });
+      await verifyProject({
+        directory: selection.directory,
+        packageManager: selection.packageManager,
+        formatter: selection.formatter,
+        paths: formatPaths,
+        isWorkspace: Boolean(workspace),
+      });
 
       if (selection.shouldInitializeGit) {
         await initializeGit(selection.directory, remoteUrl);

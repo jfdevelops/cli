@@ -28,9 +28,10 @@ export function renderPlanTree(projectRoot: string, plan: ChangePlan, isConfigCh
 
 /**
  * Shows each conflict with its diff and asks whether to keep the current file or apply the planned
- * content. Conflicts that cannot be overwritten are reported and kept.
+ * content. Conflicts that cannot be overwritten are reported and kept. When policy is set, every
+ * overwritable conflict uses that choice without prompting.
  */
-export async function resolveConflicts(plan: ChangePlan, prompter: Prompter) {
+export async function resolveConflicts(plan: ChangePlan, prompter: Prompter, policy?: ConflictResolution) {
   const resolutions: Record<string, ConflictResolution> = {};
 
   for (const conflict of plan.conflicts) {
@@ -47,6 +48,12 @@ export async function resolveConflicts(plan: ChangePlan, prompter: Prompter) {
     }
 
     prompter.note(formatChangeDiff(conflict.path, conflict.current, conflict.desired), description);
+
+    if (policy) {
+      resolutions[conflict.path] = policy;
+      continue;
+    }
+
     resolutions[conflict.path] = await prompter.select({
       message: `How should ${conflict.path} be handled?`,
       choices: [

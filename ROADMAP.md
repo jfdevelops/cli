@@ -240,7 +240,7 @@ Completion: a library tarball exposes its declared skills, and the CLI discovers
 - Final configuration structure, schema hosting, and migration strategy.
 - Target scoping of native agent discovery when a monorepo mixes integrations.
 - Catalog mappings for libraries without metadata and ambiguous skill-name selection.
-- Exact non-interactive flags and behavior for scripted usage.
+- Non-interactive flags for `add`, `skills sync`, and `create skills` (create/init `--yes` flags are implemented).
 - Recovery strategy for interrupted operations and edited managed files.
 - Release automation and versioning policy for instruction changes.
 

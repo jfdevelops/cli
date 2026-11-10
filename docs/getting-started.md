@@ -4,6 +4,8 @@
 
 Every command that changes files shows the full plan first and writes nothing until you confirm. Cancelling (Escape or Ctrl+C) at any prompt leaves the project untouched. The one exception is `add addon`: when you confirm installing a missing package, the install happens before its skills are chosen, and the command tells you if you cancel afterwards.
 
+Agents and scripts can run `create` and `init` with `--yes` and flags instead of prompts—for example `jfdevelops create my-app --kind app --yes` or `jfdevelops init --yes`. See [Command reference](commands.md) for the flag defaults.
+
 ## Start a new project
 
 ```sh

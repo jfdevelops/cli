@@ -47,8 +47,8 @@ describe('createProgram', () => {
     const { output, error } = await runProgram([]);
 
     expect(output).toContain('Usage: jfdevelops [options] [command]');
-    expect(output).toMatch(/create \[name\]\s+Create a new app or library/);
-    expect(output).toMatch(/init \[directory\]\s+Adopt an existing project/);
+    expect(output).toMatch(/create \[options\] \[name\]\s+Create a new app or library/);
+    expect(output).toMatch(/init \[options\] \[directory\]\s+Adopt an existing project/);
     expect(error).toMatchObject({ exitCode: 0 });
   });
 
@@ -98,6 +98,22 @@ describe('create command', () => {
     expect(transcript.at(-1)).toBe('cancel: Project creation cancelled. No files were changed.');
     expect(existsSync(destination)).toBe(false);
   });
+
+  it('refuses to run without a terminal when --yes is omitted', async () => {
+    const { prompter } = createScriptedPrompter(() => 'cancel');
+    const { output, error } = await runProgram(['create', 'site'], { createPrompter: () => prompter, isInteractive: () => false });
+
+    expect(output).toContain('jfdevelops create is interactive; pass --yes with flags, or run it in a terminal.');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
+
+  it('requires --kind when running with --yes', async () => {
+    const { prompter } = createScriptedPrompter(() => 'cancel');
+    const { output, error } = await runProgram(['create', 'site', '--yes'], { createPrompter: () => prompter, isInteractive: () => false });
+
+    expect(output).toContain('Missing --kind. Use app or library.');
+    expect(error).toMatchObject({ exitCode: 1 });
+  });
 });
 
 describe('create skills command', () => {
@@ -112,12 +128,30 @@ describe('create skills command', () => {
 });
 
 describe('init command', () => {
-  it('refuses to run without a terminal', async () => {
+  it('refuses to run without a terminal when --yes is omitted', async () => {
     const { prompter } = createScriptedPrompter(() => 'cancel');
     const { output, error } = await runProgram(['init'], { createPrompter: () => prompter, isInteractive: () => false });
 
-    expect(output).toContain('jfdevelops init is interactive; run it in a terminal.');
+    expect(output).toContain('jfdevelops init is interactive; pass --yes with flags, or run it in a terminal.');
     expect(error).toMatchObject({ exitCode: 1 });
+  });
+
+  it('runs init non-interactively with --yes', async () => {
+    const fixture = await createFixture({ 'package.json': { name: 'site', private: true, packageManager: 'npm@10.0.0', dependencies: { next: '15.0.0' } } });
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+
+    fixtures.push(fixture);
+
+    await runProgram(['init', fixture.root, '--yes'], {
+      createPrompter: () => prompter,
+      isInteractive: () => false,
+      installDependency: async () => undefined,
+    });
+
+    expect(transcript[0]).toBe('intro: jfdevelops init');
+    expect(transcript.at(-1)).toBe('outro: Project initialized.');
+    expect(existsSync(join(fixture.root, 'jfdevelops.json'))).toBe(true);
+    expect(process.exitCode).toBeUndefined();
   });
 
   it('runs init in the given directory', async () => {

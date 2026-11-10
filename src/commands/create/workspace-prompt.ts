@@ -13,13 +13,102 @@ type Taken = { names: Set<string>; directories: Set<string> };
 const directoryNamePattern = /^[a-z0-9][a-z0-9._-]*$/;
 
 // A scoped project name such as @acme/site shares its scope; otherwise a library is scoped by the project name and an app is prefixed by it.
-function getDefaultNamespace(projectName: string, kind: 'app' | 'library') {
+export function getDefaultNamespace(projectName: string, kind: 'app' | 'library') {
   if (projectName.startsWith('@')) {
 
     return projectName.split('/')[0] ?? projectName;
   }
 
   return kind === 'library' ? `@${projectName}` : projectName;
+}
+
+export function resolveNamespace(answer: string | undefined, projectName: string, kind: 'app' | 'library') {
+  const parsed = parseNamespace(answer ?? getDefaultNamespace(projectName, kind));
+
+  if ('error' in parsed) {
+    throw new Error(parsed.error);
+  }
+
+  return parsed.value;
+}
+
+function resolveDirectory(answer: string | undefined, fallback: string) {
+  const parsed = parseDirectory(answer ?? fallback);
+
+  if ('error' in parsed) {
+    throw new Error(parsed.error);
+  }
+
+  return parsed.value;
+}
+
+function resolveWorkspacePackage(name: string, namespace: string, parentDirectory: string, taken: Taken, label: 'app' | 'package') {
+  const result = createPackageValidator(namespace, parentDirectory, taken, label)(name);
+
+  if ('error' in result) {
+    throw new Error(result.error);
+  }
+
+  return result.value;
+}
+
+function resolveLibraries(names: string[], namespace: string, directory: string, taken: Taken) {
+  const libraries: WorkspacePackage[] = [];
+
+  for (const name of names) {
+    const library = resolveWorkspacePackage(name, namespace, directory, taken, 'package');
+
+    libraries.push(library);
+    claim(taken, library);
+  }
+
+  return libraries;
+}
+
+/** Builds an app monorepo layout from flags, using the same defaults as the interactive prompts. */
+export function createAppWorkspaceFromFlags(options: {
+  projectName: string;
+  namespace?: string;
+  appName?: string;
+  appsDirectory?: string;
+  packagesDirectory?: string;
+  packages?: string[];
+}): WorkspaceLayout {
+  const taken: Taken = { names: new Set([options.projectName]), directories: new Set() };
+  const namespace = resolveNamespace(options.namespace, options.projectName, 'app');
+  const appName = options.appName ?? defaultAppName;
+  const appsDirectory = resolveDirectory(options.appsDirectory, 'apps');
+  const packagesDirectory = resolveDirectory(options.packagesDirectory, 'packages');
+  const app = resolveWorkspacePackage(appName, namespace, appsDirectory, taken, 'app');
+
+  claim(taken, app);
+
+  return {
+    appsDirectory,
+    packagesDirectory,
+    apps: [app],
+    libraries: resolveLibraries(options.packages ?? [], namespace, packagesDirectory, taken),
+  };
+}
+
+/** Builds a library-only workspace from flags. At least one package name is required. */
+export function createLibraryWorkspaceFromFlags(options: {
+  projectName: string;
+  namespace?: string;
+  packagesDirectory?: string;
+  packages?: string[];
+}): WorkspaceLayout {
+  const packageNames = options.packages ?? [defaultLibraryName];
+  const taken: Taken = { names: new Set([options.projectName]), directories: new Set() };
+  const namespace = resolveNamespace(options.namespace, options.projectName, 'library');
+  const packagesDirectory = resolveDirectory(options.packagesDirectory, 'packages');
+
+  return {
+    appsDirectory: undefined,
+    packagesDirectory,
+    apps: [],
+    libraries: resolveLibraries(packageNames, namespace, packagesDirectory, taken),
+  };
 }
 
 function parseNamespace(answer: string) {

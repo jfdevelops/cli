@@ -4,9 +4,9 @@ Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` onc
 
 | Command | What it does | Needs a terminal |
 | --- | --- | --- |
-| `create [name]` | Create an app or library from a template | Yes |
+| `create [name]` | Create an app or library from a template | Yes, unless `--yes` |
 | `create skills` | Register or scaffold skills in a library package and verify they are published | Yes |
-| `init [directory]` | Adopt an existing project | Yes |
+| `init [directory]` | Adopt an existing project | Yes, unless `--yes` |
 | `add` | Browse and choose an addition | Yes |
 | `add --list` | List compatible additions without changing anything | No |
 | `add skill <name>` | Enable one skill from an installed package | Yes |
@@ -17,7 +17,7 @@ Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` onc
 | `skills [directory]` | Report whether enabled skills match installed versions | No |
 | `skills sync [directory]` | Update skill copies to the installed versions | Yes |
 
-Interactive commands refuse to run without a terminal and exit with code 1, rather than waiting for input that cannot arrive. There are no flags that answer prompts automatically yet.
+`create` and `init` accept `--yes` so agents and scripts can run them without a terminal. Other mutating commands still refuse to run without a terminal and exit with code 1.
 
 ## Exit codes
 
@@ -28,9 +28,36 @@ Interactive commands refuse to run without a terminal and exit with code 1, rath
 
 ## `create [name]`
 
-The optional argument is the package name. It is also the destination: `create my-project` creates `./my-project`, and `create @acme/site` names the package `@acme/site` in `./site`. Use `.` to create the project in the current directory, named after that directory. The destination must be empty or not exist yet.
+The optional argument is the package name. It is also the destination: `create my-project` creates `./my-project`, and `create @acme/site` names the package `@acme/site` in `./site`. Use `.` to create the project in the current directory, named after that directory. The destination may already contain files; differing paths are offered as conflicts. A destination that already has `jfdevelops.json` is refused—use `init` to adopt that project instead.
 
-When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, coding agents, and Git initialization. When Git is initialized it also offers to add a remote: paste an `https://`, `ssh://`, or `git@host:path` URL, or press Enter to skip. The URL is added as `origin` and nothing is pushed. Templates:
+When the argument gives a valid package name, `create` does not ask for the name or destination. Otherwise it prompts for them, along with app or library, template, package manager, formatter, coding agents, and Git initialization. When Git is initialized it also offers to add a remote: paste an `https://`, `ssh://`, or `git@host:path` URL, or press Enter to skip. The URL is added as `origin` and nothing is pushed.
+
+### Non-interactive flags
+
+Pass `--yes` to apply the plan without prompts. `--kind` is required; other choices use the defaults below. Without a terminal, `--yes` is required.
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `--kind <app\|library>` | required | |
+| `--template <name>` | the only template for that kind | Must match the kind |
+| `--package-manager <name>` | `pnpm` | `pnpm`, `npm`, `yarn`, or `bun` |
+| `--formatter <name>` | `prettier` | `prettier` or `biome` |
+| `--agents <list>` | all agents | Comma-separated: `claude-code`, `codex`, `cursor`, `copilot` |
+| `--git` / `--no-git` | initialize Git | |
+| `--remote <url>` | none | Only with Git initialization |
+| `--monorepo` | off | App workspaces only |
+| `--workspace` | off | Library workspaces only |
+| `--namespace <name>` | same as interactive | Or `none` for bare names |
+| `--app-name <name>` | `web` | With `--monorepo` |
+| `--apps-dir <path>` | `apps` | With `--monorepo` |
+| `--libraries-dir <path>` | `packages` | With `--monorepo` or `--workspace` |
+| `--packages <list>` | none / `core` for `--workspace` | Comma-separated library short names |
+| `-y, --yes` | | Apply without confirming |
+| `--conflicts <keep\|overwrite>` | `keep` | How to treat overwritable conflicts |
+
+Example: `jfdevelops create my-app --kind app --yes`.
+
+Templates:
 
 | Template | Kind | Contents |
 | --- | --- | --- |
@@ -89,6 +116,21 @@ See [authoring skills](authoring.md).
 ## `init [directory]`
 
 Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds the CLI as an exact development dependency when it is missing.
+
+### Non-interactive flags
+
+Pass `--yes` to apply without prompts. Without a terminal, `--yes` is required. Omitted selection flags install or adopt everything available.
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `--package-manager <name>` | detected | Required only when the package manager cannot be detected |
+| `--agents <list>` | all agents | Comma-separated agent names |
+| `--addons <list>` | all detected integrations | Comma-separated integration names |
+| `--skills <list>` | all available skills | Comma-separated skill names; use `package:name` when a name is provided by more than one package |
+| `-y, --yes` | | Apply without confirming |
+| `--conflicts <keep\|overwrite>` | `keep` | How to treat overwritable conflicts |
+
+Detected target kinds are accepted as-is. If a target kind is unknown, run interactively. Example: `jfdevelops init --yes`.
 
 ## `add`
 
