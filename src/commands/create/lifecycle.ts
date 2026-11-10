@@ -2,21 +2,48 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { runCommand } from '../../process/run.js';
+import type { FormatterName } from './templates.js';
 
-export type ProjectVerifier = (options: { directory: string; packageManager: PackageManagerName }) => Promise<void>;
-export type ProjectFormatter = ProjectVerifier;
+export type ProjectFormatOptions = {
+  directory: string;
+  packageManager: PackageManagerName;
+  formatter: FormatterName;
+  // Only these project-relative paths are formatted, so kept conflict files stay untouched.
+  paths: string[];
+};
+
+export type ProjectFormatter = (options: ProjectFormatOptions) => Promise<void>;
+export type ProjectVerifier = (options: ProjectFormatOptions) => Promise<void>;
 export type GitInitializer = (directory: string, remoteUrl?: string) => Promise<void>;
 export type GitIdentityCheck = () => Promise<boolean>;
 
 const execFileAsync = promisify(execFile);
 
-// Applies the selected formatter and style policy to the generated files once dependencies are installed.
-export async function formatCreatedProject({ directory, packageManager }: Parameters<ProjectFormatter>[0]) {
-  await runCommand(packageManager, ['run', 'format'], { cwd: directory });
+async function runFormatter(packageManager: PackageManagerName, formatter: FormatterName, paths: string[], directory: string, mode: 'write' | 'check') {
+  if (formatter === 'biome') {
+    await runCommand(packageManager, ['exec', 'biome', 'format', ...(mode === 'write' ? ['--write'] : []), ...paths], { cwd: directory });
+  } else {
+    await runCommand(packageManager, ['exec', 'prettier', mode === 'write' ? '--write' : '--check', ...paths], { cwd: directory });
+  }
+
+  await runCommand(packageManager, ['exec', 'eslint', ...(mode === 'write' ? ['--fix'] : []), ...paths], { cwd: directory });
 }
 
-export async function verifyCreatedProject({ directory, packageManager }: Parameters<ProjectVerifier>[0]) {
-  await runCommand(packageManager, ['run', 'format:check'], { cwd: directory });
+// Applies the selected formatter and style policy only to the paths create wrote or overwrote.
+export async function formatCreatedProject({ directory, packageManager, formatter, paths }: ProjectFormatOptions) {
+  if (paths.length === 0) {
+
+    return;
+  }
+
+  await runFormatter(packageManager, formatter, paths, directory, 'write');
+}
+
+export async function verifyCreatedProject({ directory, packageManager, formatter, paths }: ProjectFormatOptions) {
+  if (paths.length > 0) {
+    await runFormatter(packageManager, formatter, paths, directory, 'check');
+  }
+
   await runCommand(packageManager, ['run', 'build'], { cwd: directory });
 }
 

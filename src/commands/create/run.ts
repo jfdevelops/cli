@@ -1,13 +1,13 @@
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { parseProjectConfig } from '../../config/read.js';
+import { parseProjectConfig, projectConfigFileName } from '../../config/read.js';
 import { packageNameSchema } from '../../config/schema.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { describeDevelopmentDependency, installDevelopmentDependency, type DependencyInstaller } from '../../dependencies/install.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
-import { applyChangePlan } from '../../plan/apply.js';
+import { applyChangePlan, type AppliedAction, type ConflictResolution } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
 import { refreshManagedFiles } from '../../plan/refresh.js';
 import { askValidText } from '../../prompts/ask-valid.js';
@@ -16,7 +16,6 @@ import { agentNames, type AgentName } from '../../skills/agents.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
-import type { ConflictResolution } from '../../plan/apply.js';
 import { createInitConfig } from '../init/config.js';
 import { chooseAgents } from '../agents.js';
 import { renderFileTree } from '../tree.js';
@@ -25,6 +24,28 @@ import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemote
 import { createTemplateFiles, projectTemplates, type FormatterName, type ProjectKind } from './templates.js';
 import { createWorkspaceFiles, createWorkspaceTargets, type WorkspaceLayout } from './workspace.js';
 import { chooseAppWorkspace, chooseLibraryWorkspace, createAppWorkspaceFromFlags, createLibraryWorkspaceFromFlags } from './workspace-prompt.js';
+
+const writtenActions = new Set<AppliedAction>(['create', 'update', 'edit', 'overwrite']);
+
+// Matches the generated ignore list so skill copies and lockfiles are not reformatted after install.
+function canFormatCreatedPath(path: string) {
+
+  return !(
+    path === projectConfigFileName ||
+    path === 'pnpm-lock.yaml' ||
+    path === 'package-lock.json' ||
+    path === 'yarn.lock' ||
+    path === 'bun.lock' ||
+    path.startsWith('.agents/') ||
+    path.startsWith('.claude/skills/') ||
+    path.startsWith('dist/')
+  );
+}
+
+function listFormatPaths(applied: Array<{ path: string; action: AppliedAction }>) {
+
+  return applied.filter((file) => writtenActions.has(file.action) && canFormatCreatedPath(file.path)).map((file) => file.path);
+}
 
 export type CreateAnswers = {
   kind: ProjectKind;
@@ -182,7 +203,7 @@ function resolveProjectFromAnswers(options: CreateOptions, answers: CreateAnswer
     formatter: answers.formatter ?? 'prettier',
     agents: answers.agents ?? [...agentNames],
     shouldInitializeGit: answers.shouldInitializeGit ?? true,
-    remoteUrl: answers.remoteUrl,
+    ...(answers.remoteUrl !== undefined ? { remoteUrl: answers.remoteUrl } : {}),
   };
 }
 
@@ -269,6 +290,12 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     checkGitIdentity = hasGitIdentity,
   } = options;
   const selection = await chooseProject(options);
+
+  if (existsSync(join(selection.directory, projectConfigFileName))) {
+    throw new Error(
+      `Destination already has ${projectConfigFileName}. Use jfdevelops init to adopt an existing project, or choose a directory without one.`,
+    );
+  }
 
   if (selection.shouldInitializeGit && !(await checkGitIdentity())) {
     prompter.warn('Git has no author name and email configured, so the foundation commit will be skipped. Set user.name and user.email, then commit the project yourself.');
@@ -365,10 +392,16 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   // Installing rewrites package.json, so generated files are recorded as they are afterwards.
   let managedFiles = await refreshManagedFiles(selection.directory, result.managedFiles, (file) => file.owner.type === 'project');
   let verificationError: unknown;
+  const formatPaths = listFormatPaths(result.applied);
 
   if (result.isComplete && !dependencyError) {
     try {
-      await formatProject({ directory: selection.directory, packageManager: selection.packageManager });
+      await formatProject({
+        directory: selection.directory,
+        packageManager: selection.packageManager,
+        formatter: selection.formatter,
+        paths: formatPaths,
+      });
       managedFiles = await refreshManagedFiles(selection.directory, managedFiles, (file) => file.owner.type === 'project');
     } catch (error) {
       verificationError = error;
@@ -380,7 +413,12 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
 
   if (result.isComplete && !dependencyError && !verificationError) {
     try {
-      await verifyProject({ directory: selection.directory, packageManager: selection.packageManager });
+      await verifyProject({
+        directory: selection.directory,
+        packageManager: selection.packageManager,
+        formatter: selection.formatter,
+        paths: formatPaths,
+      });
 
       if (selection.shouldInitializeGit) {
         await initializeGit(selection.directory, remoteUrl);

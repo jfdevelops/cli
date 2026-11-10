@@ -571,6 +571,62 @@ describe('runCreate', () => {
     expect(existsSync(join(destination, 'package.json'))).toBe(true);
   });
 
+  it('refuses a destination that already has jfdevelops.json', async () => {
+    const fixture = await createFixture({
+      'site/jfdevelops.json': {
+        schemaVersion: 1,
+        generator: { package: '@jfdevelops/cli', version: '0.1.0' },
+        project: { name: 'site', packageManager: 'pnpm' },
+      },
+    });
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(answerProject({ text: 'site' }));
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('failed');
+    expect(transcript.some((line) => line.includes('already has jfdevelops.json'))).toBe(true);
+    expect(existsSync(join(destination, 'package.json'))).toBe(false);
+  });
+
+  it('formats only the files create wrote or overwrote', async () => {
+    const fixture = await createFixture({ 'site/src/index.ts': 'export const kept = 1\n' });
+    const destination = join(fixture.root, 'site');
+    const { prompter } = createScriptedPrompter(answerProject({ text: 'site' }));
+    const formatted: string[] = [];
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        installDependency: installTestDependency,
+        formatProject: async ({ paths }) => {
+          formatted.push(...paths);
+        },
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('complete');
+    expect(formatted).not.toContain('src/index.ts');
+    expect(formatted).toContain('package.json');
+    expect(await readFile(join(destination, 'src/index.ts'), 'utf8')).toBe('export const kept = 1\n');
+  });
+
   it('asks before replacing a conflicting file in the destination', async () => {
     const fixture = await createFixture({ 'site/package.json': '{"name":"mine"}\n' });
     const destination = join(fixture.root, 'site');
