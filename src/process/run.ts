@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type SpawnOptions } from 'node:child_process';
 
 type RunCommandOptions = { cwd: string; captureOutput?: boolean };
 
@@ -17,11 +17,11 @@ function quoteForShell(argument: string) {
 export function runCommand(command: string, arguments_: string[], { cwd, captureOutput = false }: RunCommandOptions) {
 
   return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, isWindows ? arguments_.map((argument) => quoteForShell(argument)) : arguments_, {
-      cwd,
-      shell: isWindows,
-      stdio: captureOutput ? ['ignore', 'pipe', 'inherit'] : 'inherit',
-    });
+    const options: SpawnOptions = { cwd, stdio: captureOutput ? ['ignore', 'pipe', 'inherit'] : 'inherit' };
+    // Node deprecates passing an arguments array alongside a shell (DEP0190), so Windows gets one quoted command line.
+    const child = isWindows
+      ? spawn([command, ...arguments_.map((argument) => quoteForShell(argument))].join(' '), { ...options, shell: true })
+      : spawn(command, arguments_, options);
     let output = '';
 
     child.stdout?.setEncoding('utf8');

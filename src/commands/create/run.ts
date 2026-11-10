@@ -1,5 +1,6 @@
-import { mkdir, readdir } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
 import { parseProjectConfig } from '../../config/read.js';
 import { packageNameSchema } from '../../config/schema.js';
 import { writeProjectConfig } from '../../config/write.js';
@@ -17,10 +18,10 @@ import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { chooseAgents } from '../agents.js';
-import { describePlan, resolveConflicts } from '../review.js';
+import { renderFileTree } from '../tree.js';
+import { listPlannedEntries, resolveConflicts } from '../review.js';
 import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
 import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
-import { renderFileTree } from './tree.js';
 import { createWorkspaceFiles, createWorkspaceTargets } from './workspace.js';
 import { chooseAppWorkspace, chooseLibraryWorkspace } from './workspace-prompt.js';
 
@@ -42,23 +43,6 @@ const packageManagers: PackageManagerName[] = ['pnpm', 'npm', 'yarn', 'bun'];
 function getDefaultDirectory(projectName: string) {
 
   return `./${projectName.includes('/') ? projectName.slice(projectName.lastIndexOf('/') + 1) : projectName}`;
-}
-
-async function assertDestinationAvailable(directory: string) {
-  try {
-    const entries = await readdir(directory);
-
-    if (entries.length > 0) {
-      throw new Error(`Destination is not empty: ${directory}`);
-    }
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-
-      return;
-    }
-
-    throw error;
-  }
 }
 
 // A scoped package name such as @acme/site is a name, not a path: the project lives in ./site.
@@ -163,9 +147,12 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     selection.shouldInitializeGit = false;
   }
 
-  const remoteUrl = selection.shouldInitializeGit ? await chooseRemoteUrl(prompter) : undefined;
+  if (selection.shouldInitializeGit && existsSync(join(selection.directory, '.git'))) {
+    prompter.warn('The destination is already a Git repository, so Git will not be initialized. Commit the new files yourself.');
+    selection.shouldInitializeGit = false;
+  }
 
-  await assertDestinationAvailable(selection.directory);
+  const remoteUrl = selection.shouldInitializeGit ? await chooseRemoteUrl(prompter) : undefined;
 
   const catalog = await buildSkillCatalog(selection.directory, [], [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
   const selectedSkills = catalog.skills;
@@ -197,7 +184,11 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     missingSourceSkills: [],
   };
   const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
-  const plannedChanges = describePlan(plan, true);
+  const plannedChanges: string[] = [];
+
+  if (plan.conflicts.length > 0) {
+    plannedChanges.push(`${plan.conflicts.length} existing file${plan.conflicts.length === 1 ? '' : 's'} in the destination differ from the plan; you choose what to do with each.`);
+  }
 
   plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version, Boolean(workspace))}`);
   plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then format:check and build`);
@@ -210,8 +201,9 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     }
   }
 
-  const layoutPaths = [...plan.changes.filter((change) => change.action !== 'unchanged').map((change) => change.path), 'jfdevelops.json'];
-  const layoutNote = renderFileTree(basename(selection.directory), layoutPaths);
+  // Everything in a new project is created, so only files that differ from that are tagged.
+  const layoutEntries = [...listPlannedEntries(plan, false), { path: 'jfdevelops.json' }].map(({ path, note }) => ({ path, ...(note === 'create' ? {} : { note }) }));
+  const layoutNote = renderFileTree(basename(selection.directory), layoutEntries, { isCollapsingAgentDirectories: true });
 
   prompter.note(workspace ? `${layoutNote}\n\nPackages build on their own until you link them with workspace dependencies.` : layoutNote, 'Project layout');
   prompter.note(plannedChanges.join('\n'), 'Planned project');

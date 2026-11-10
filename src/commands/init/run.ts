@@ -13,7 +13,7 @@ import { buildSkillCatalog, type SkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { chooseAgents } from '../agents.js';
-import { describePlan, reportApplyResult, resolveConflicts } from '../review.js';
+import { renderPlanTree, reportApplyResult, resolveConflicts } from '../review.js';
 import { createInitConfig } from './config.js';
 import { confirmIntegrations, filterAddonSkills } from './integrations.js';
 import { findMissingSourceSkills, selectSkills } from './skills.js';
@@ -116,10 +116,10 @@ async function adoptProject({ directory, version, prompter, installDependency = 
     return 'unchanged';
   }
 
-  const plannedChanges = describePlan(plan, isConfigChanged);
+  const plannedChanges = [renderPlanTree(project.root, plan, isConfigChanged)];
 
   if (needsCliDependency) {
-    plannedChanges.push(`Install development dependency: ${describeDevelopmentDependency(packageManager, '@jfdevelops/cli', version, isWorkspaceRoot)}`);
+    plannedChanges.push('', `Install development dependency: ${describeDevelopmentDependency(packageManager, '@jfdevelops/cli', version, isWorkspaceRoot)}`);
   }
 
   prompter.note(plannedChanges.join('\n'), 'Planned changes');
