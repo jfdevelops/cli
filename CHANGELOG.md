@@ -1,5 +1,18 @@
 # @jfdevelops/cli
 
+## 0.8.0
+
+### Minor Changes
+
+- 091ad6b: Add `--yes` and choice flags so agents can run `create` and `init` without a terminal.
+
+### Patch Changes
+
+- e7e7622: Refuse `create` when the destination already has `jfdevelops.json`, and format only the files create wrote or overwrote so kept conflicts stay untouched.
+  
+  Skip unsupported file types during scaffold formatting and verification so ignore files do not cause project creation to fail.
+- b2b5e23: Planned changes now appear as a file tree with each file's action, `create` can scaffold into a non-empty directory (existing files that differ are offered as conflicts, and Git is not re-initialized in an existing repository), and package manager commands on Windows no longer print Node's DEP0190 deprecation warning.
+
 ## 0.7.0
 
 ### Minor Changes
