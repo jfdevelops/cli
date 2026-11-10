@@ -8,6 +8,35 @@ function describeScopes(integration: DetectedIntegration) {
   return integration.scopes.map((scope) => (scope === '.' ? 'project root' : scope)).join(', ');
 }
 
+function adoptIntegrations(integrations: DetectedIntegration[], existing: ProjectConfig['addons'], selectedNames: string[]) {
+  const detectedNames = new Set(integrations.map((integration) => integration.name));
+  const retained = existing.filter((addon) => !detectedNames.has(addon.name));
+  const existingByName = new Map(existing.map((addon) => [addon.name, addon]));
+  const selected = selectedNames.map((name) => {
+    if (!detectedNames.has(name)) {
+      throw new Error(`Integration ${name} was not detected in this project.`);
+    }
+
+    return existingByName.get(name) ?? { name, options: {} };
+  });
+
+  return [...retained, ...selected];
+}
+
+/**
+ * Resolves integrations without prompting. Omitting selectedNames adopts every detected integration
+ * and keeps recorded addons that are no longer detected.
+ */
+export function resolveIntegrations(integrations: DetectedIntegration[], existing: ProjectConfig['addons'], selectedNames: string[] | undefined, prompter: Prompter) {
+  if (integrations.length === 0) {
+    prompter.info('No supported integrations detected.');
+
+    return existing;
+  }
+
+  return adoptIntegrations(integrations, existing, selectedNames ?? integrations.map((integration) => integration.name));
+}
+
 /** Offers detected dependencies for explicit adoption; detection alone never enables an integration. */
 export async function confirmIntegrations(integrations: DetectedIntegration[], existing: ProjectConfig['addons'], prompter: Prompter) {
   const detectedNames = new Set(integrations.map((integration) => integration.name));
@@ -24,10 +53,8 @@ export async function confirmIntegrations(integrations: DetectedIntegration[], e
     choices: integrations.map((integration) => ({ value: integration.name, label: integration.name, hint: describeScopes(integration) })),
     initialValues: integrations.filter((integration) => existing.some((addon) => addon.name === integration.name)).map((integration) => integration.name),
   });
-  const existingByName = new Map(existing.map((addon) => [addon.name, addon]));
-  const selected = selectedNames.map((name) => existingByName.get(name) ?? { name, options: {} });
 
-  return [...retained, ...selected];
+  return adoptIntegrations(integrations, existing, selectedNames);
 }
 
 /** Keeps skills from detected addon packages out of the catalog until that addon is confirmed. */

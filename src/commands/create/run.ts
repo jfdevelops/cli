@@ -12,23 +12,43 @@ import { createChangePlan } from '../../plan/create.js';
 import { refreshManagedFiles } from '../../plan/refresh.js';
 import { askValidText } from '../../prompts/ask-valid.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
-import { agentNames } from '../../skills/agents.js';
+import { agentNames, type AgentName } from '../../skills/agents.js';
 import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
+import type { ConflictResolution } from '../../plan/apply.js';
 import { createInitConfig } from '../init/config.js';
 import { chooseAgents } from '../agents.js';
 import { renderFileTree } from '../tree.js';
 import { listPlannedEntries, resolveConflicts } from '../review.js';
 import { formatCreatedProject, hasGitIdentity, initializeProjectGit, isGitRemoteUrl, verifyCreatedProject, type GitIdentityCheck, type GitInitializer, type ProjectFormatter, type ProjectVerifier } from './lifecycle.js';
-import { createTemplateFiles, projectTemplates, type ProjectKind } from './templates.js';
-import { createWorkspaceFiles, createWorkspaceTargets } from './workspace.js';
-import { chooseAppWorkspace, chooseLibraryWorkspace } from './workspace-prompt.js';
+import { createTemplateFiles, projectTemplates, type FormatterName, type ProjectKind } from './templates.js';
+import { createWorkspaceFiles, createWorkspaceTargets, type WorkspaceLayout } from './workspace.js';
+import { chooseAppWorkspace, chooseLibraryWorkspace, createAppWorkspaceFromFlags, createLibraryWorkspaceFromFlags } from './workspace-prompt.js';
+
+export type CreateAnswers = {
+  kind: ProjectKind;
+  templateName?: string;
+  packageManager?: PackageManagerName;
+  formatter?: FormatterName;
+  agents?: AgentName[];
+  shouldInitializeGit?: boolean;
+  remoteUrl?: string;
+  monorepo?: boolean;
+  workspace?: boolean;
+  namespace?: string;
+  appName?: string;
+  appsDirectory?: string;
+  packagesDirectory?: string;
+  packages?: string[];
+};
 
 export type CreateOptions = {
   directory?: string;
   version: string;
   prompter: Prompter;
+  answers?: CreateAnswers;
+  nonInteractive?: { conflicts: ConflictResolution };
   installDependency?: DependencyInstaller;
   formatProject?: ProjectFormatter;
   verifyProject?: ProjectVerifier;
@@ -37,6 +57,19 @@ export type CreateOptions = {
 };
 
 export type CreateStatus = 'complete' | 'incomplete' | 'cancelled' | 'failed';
+
+type ProjectSelection = {
+  projectName: string;
+  directory: string;
+  kind: ProjectKind;
+  workspace: WorkspaceLayout | undefined;
+  templateName: string;
+  packageManager: PackageManagerName;
+  formatter: FormatterName;
+  agents: AgentName[];
+  shouldInitializeGit: boolean;
+  remoteUrl?: string;
+};
 
 const packageManagers: PackageManagerName[] = ['pnpm', 'npm', 'yarn', 'bun'];
 
@@ -63,7 +96,102 @@ function parseProjectArgument(argument: string | undefined): { name?: string; di
   return { ...(packageNameSchema.safeParse(name).success ? { name } : {}), directory: argument, suggestedName: name };
 }
 
-async function chooseProject(options: CreateOptions) {
+function resolveTemplateName(kind: ProjectKind, templateName: string | undefined) {
+  const templates = projectTemplates.filter((template) => template.kind === kind);
+  const selected = templateName ?? templates[0]?.name;
+
+  if (!selected || !templates.some((template) => template.name === selected)) {
+    throw new Error(
+      templateName
+        ? `Unknown template: ${templateName}. Use one of: ${templates.map((template) => template.name).join(', ')}.`
+        : `No template is available for ${kind} projects.`,
+    );
+  }
+
+  return selected;
+}
+
+function resolveWorkspaceFromAnswers(projectName: string, answers: CreateAnswers): WorkspaceLayout | undefined {
+  if (answers.kind === 'app') {
+    if (answers.workspace) {
+      throw new Error('--workspace is only valid with --kind library.');
+    }
+
+    return answers.monorepo
+      ? createAppWorkspaceFromFlags({
+          projectName,
+          ...(answers.namespace !== undefined ? { namespace: answers.namespace } : {}),
+          ...(answers.appName !== undefined ? { appName: answers.appName } : {}),
+          ...(answers.appsDirectory !== undefined ? { appsDirectory: answers.appsDirectory } : {}),
+          ...(answers.packagesDirectory !== undefined ? { packagesDirectory: answers.packagesDirectory } : {}),
+          ...(answers.packages !== undefined ? { packages: answers.packages } : {}),
+        })
+      : undefined;
+  }
+
+  if (answers.monorepo) {
+    throw new Error('--monorepo is only valid with --kind app.');
+  }
+
+  return answers.workspace
+    ? createLibraryWorkspaceFromFlags({
+        projectName,
+        ...(answers.namespace !== undefined ? { namespace: answers.namespace } : {}),
+        ...(answers.packagesDirectory !== undefined ? { packagesDirectory: answers.packagesDirectory } : {}),
+        ...(answers.packages !== undefined ? { packages: answers.packages } : {}),
+      })
+    : undefined;
+}
+
+function resolveProjectFromAnswers(options: CreateOptions, answers: CreateAnswers): ProjectSelection {
+  const argument = parseProjectArgument(options.directory);
+  const projectName = argument.name ?? argument.suggestedName;
+
+  if (!projectName) {
+    throw new Error('Pass a project name or directory argument when creating a project non-interactively.');
+  }
+
+  const nameResult = packageNameSchema.safeParse(projectName);
+
+  if (!nameResult.success) {
+    throw new Error(`Invalid package name: ${projectName}`);
+  }
+
+  if (answers.remoteUrl !== undefined && answers.shouldInitializeGit === false) {
+    throw new Error('--remote requires Git initialization; omit --no-git or pass --git.');
+  }
+
+  if (answers.remoteUrl !== undefined && !isGitRemoteUrl(answers.remoteUrl)) {
+    throw new Error(`That is not a Git remote URL: ${answers.remoteUrl}. Use an https://, ssh://, or git@host:path URL.`);
+  }
+
+  const directory = resolve(argument.directory ?? getDefaultDirectory(projectName));
+  const packageManager = answers.packageManager ?? 'pnpm';
+
+  if (!packageManagers.includes(packageManager)) {
+    throw new Error(`Unknown package manager: ${packageManager}. Use one of: ${packageManagers.join(', ')}.`);
+  }
+
+  return {
+    projectName,
+    directory,
+    kind: answers.kind,
+    workspace: resolveWorkspaceFromAnswers(projectName, answers),
+    templateName: resolveTemplateName(answers.kind, answers.templateName),
+    packageManager,
+    formatter: answers.formatter ?? 'prettier',
+    agents: answers.agents ?? [...agentNames],
+    shouldInitializeGit: answers.shouldInitializeGit ?? true,
+    remoteUrl: answers.remoteUrl,
+  };
+}
+
+async function chooseProject(options: CreateOptions): Promise<ProjectSelection> {
+  if (options.answers) {
+
+    return resolveProjectFromAnswers(options, options.answers);
+  }
+
   const { prompter } = options;
   const argument = parseProjectArgument(options.directory);
   const projectName = argument.name ?? (await prompter.text({ message: 'What is the package name?', defaultValue: argument.suggestedName ?? 'my-project' })).trim();
@@ -152,7 +280,9 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     selection.shouldInitializeGit = false;
   }
 
-  const remoteUrl = selection.shouldInitializeGit ? await chooseRemoteUrl(prompter) : undefined;
+  const remoteUrl = selection.shouldInitializeGit
+    ? (options.answers ? selection.remoteUrl : await chooseRemoteUrl(prompter))
+    : undefined;
 
   const catalog = await buildSkillCatalog(selection.directory, [], [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
   const selectedSkills = catalog.skills;
@@ -208,9 +338,9 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   prompter.note(workspace ? `${layoutNote}\n\nPackages build on their own until you link them with workspace dependencies.` : layoutNote, 'Project layout');
   prompter.note(plannedChanges.join('\n'), 'Planned project');
 
-  const resolutions = await resolveConflicts(plan, prompter);
+  const resolutions = await resolveConflicts(plan, prompter, options.nonInteractive?.conflicts);
 
-  if (!(await prompter.confirm({ message: 'Create this project?', initialValue: true }))) {
+  if (!options.nonInteractive && !(await prompter.confirm({ message: 'Create this project?', initialValue: true }))) {
     throw new PromptCancelledError('Declined');
   }
 

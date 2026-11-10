@@ -102,6 +102,38 @@ afterEach(async () => {
 });
 
 describe('runCreate', () => {
+  it('creates an app from flags without prompting', async () => {
+    const fixture = await createFixture({});
+    const destination = join(fixture.root, 'site');
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+
+    fixtures.push(fixture);
+
+    await expect(
+      runCreate({
+        directory: destination,
+        version: '0.1.0',
+        prompter,
+        answers: { kind: 'app' },
+        nonInteractive: { conflicts: 'keep' },
+        installDependency: installTestDependency,
+        formatProject: async () => undefined,
+        verifyProject: async () => undefined,
+        initializeGit: async () => undefined,
+        checkGitIdentity: async () => true,
+      }),
+    ).resolves.toBe('complete');
+
+    expect(existsSync(join(destination, 'src/index.ts'))).toBe(true);
+    expect(await readProjectConfig(destination)).toMatchObject({
+      project: { name: 'site', packageManager: 'pnpm' },
+      formatter: 'prettier',
+      targets: [{ path: '.', kind: 'app', template: 'node-app' }],
+    });
+    expect(transcript.some((line) => line.startsWith('? '))).toBe(false);
+    expect(transcript.at(-1)).toContain('outro: Created site in');
+  });
+
   it('creates a reviewed app with required skills, configuration, and the CLI dependency', async () => {
     const fixture = await createFixture({});
     const destination = join(fixture.root, 'site');

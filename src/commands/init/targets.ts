@@ -22,6 +22,24 @@ async function askKind(target: DetectedTarget, prompter: Prompter, initialValue?
   });
 }
 
+/** Accepts detected target kinds without prompting. Unknown kinds fail so the agent can fix them interactively. */
+export function resolveTargets(targets: DetectedTarget[], prompter: Prompter): ConfirmedTarget[] {
+  prompter.note(
+    targets.map((target) => `${describeTarget(target)}: ${target.kind} (${target.reasons.join(', ')})`).join('\n'),
+    'Detected targets',
+  );
+
+  return targets.map((target) => {
+    if (target.kind === 'unknown') {
+      throw new Error(
+        `Target ${describeTarget(target)} has an unknown kind. Run jfdevelops init interactively to choose app or library.`,
+      );
+    }
+
+    return { path: target.path, kind: target.kind };
+  });
+}
+
 /**
  * Shows detected targets, asks for the type of any ambiguous target, and lets the user correct
  * detected types before they are recorded.

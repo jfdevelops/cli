@@ -88,6 +88,35 @@ afterEach(async () => {
 });
 
 describe('runInit', () => {
+  it('installs every available skill when run non-interactively without --skills', async () => {
+    const projectRoot = await createProject(createProjectFiles());
+    const { prompter, transcript } = createScriptedPrompter(() => 'cancel');
+
+    await expect(
+      runTestInit({
+        directory: projectRoot,
+        version: '0.1.0',
+        prompter,
+        answers: { agents: ['claude-code'] },
+        nonInteractive: { conflicts: 'keep' },
+      }),
+    ).resolves.toBe('complete');
+
+    expect(existsSync(join(projectRoot, '.agents/skills/build-forms/SKILL.md'))).toBe(true);
+    expect(existsSync(join(projectRoot, '.agents/skills/validate-forms/SKILL.md'))).toBe(true);
+    expect(await readProjectConfig(projectRoot)).toMatchObject({
+      agents: ['claude-code'],
+      skills: [
+        { name: 'build-forms', required: false },
+        { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-git', required: true },
+        { name: 'jf-naming-conventions', required: true },
+        { name: 'validate-forms', required: false },
+      ],
+    });
+    expect(transcript.some((line) => line.startsWith('? '))).toBe(false);
+  });
+
   it('installs selected skills, links them from instructions, and records the setup', async () => {
     const projectRoot = await createProject(createProjectFiles());
     const { prompter, transcript } = createScriptedPrompter(answer(['build-forms']));

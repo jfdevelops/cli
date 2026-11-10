@@ -1,13 +1,17 @@
 import { Command } from 'commander';
 import { runAdd, runAddList, type AdditionKind } from './commands/add/run.js';
 import type { PackedFileLister } from './authoring/packed-files.js';
-import { runCreate } from './commands/create/run.js';
+import { parseAgentsFlag, parseCommaList, parseConflictPolicy, parseEnumFlag } from './commands/flags.js';
+import { runCreate, type CreateAnswers } from './commands/create/run.js';
 import { runCreateSkills } from './commands/create/skills.js';
-import { runInit } from './commands/init/run.js';
+import type { FormatterName, ProjectKind } from './commands/create/templates.js';
+import { runInit, type InitAnswers } from './commands/init/run.js';
 import { runSkillsStatus } from './commands/skills/status.js';
 import { runSkillsSync } from './commands/skills/sync.js';
 import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
+import type { PackageManagerName } from './detect/package-manager.js';
 import { createClackPrompter } from './prompts/clack.js';
+import { createLoggingPrompter } from './prompts/logging.js';
 import type { Prompter } from './prompts/prompter.js';
 
 export type ProgramDependencies = {
@@ -19,9 +23,138 @@ export type ProgramDependencies = {
 };
 
 const defaultDependencies: ProgramDependencies = {
-  createPrompter: createClackPrompter,
+  createPrompter: () => (process.stdin.isTTY && process.stdout.isTTY ? createClackPrompter() : createLoggingPrompter()),
   isInteractive: () => Boolean(process.stdin.isTTY && process.stdout.isTTY),
 };
+
+const projectKinds = ['app', 'library'] as const satisfies readonly ProjectKind[];
+const packageManagers = ['pnpm', 'npm', 'yarn', 'bun'] as const satisfies readonly PackageManagerName[];
+const formatters = ['prettier', 'biome'] as const satisfies readonly FormatterName[];
+
+type CreateCliOptions = {
+  kind?: string;
+  template?: string;
+  packageManager?: string;
+  formatter?: string;
+  agents?: string;
+  git?: boolean;
+  remote?: string;
+  monorepo?: boolean;
+  workspace?: boolean;
+  namespace?: string;
+  appName?: string;
+  appsDir?: string;
+  librariesDir?: string;
+  packages?: string;
+  yes?: boolean;
+  conflicts?: string;
+};
+
+type InitCliOptions = {
+  packageManager?: string;
+  agents?: string;
+  addons?: string;
+  skills?: string;
+  yes?: boolean;
+  conflicts?: string;
+};
+
+function createAnswersFromFlags(options: CreateCliOptions): CreateAnswers {
+  const answers: CreateAnswers = {
+    kind: parseEnumFlag('kind', options.kind, projectKinds),
+    packageManager: parseEnumFlag('package-manager', options.packageManager, packageManagers, 'pnpm'),
+    formatter: parseEnumFlag('formatter', options.formatter, formatters, 'prettier'),
+    agents: parseAgentsFlag(options.agents),
+    shouldInitializeGit: options.git ?? true,
+    monorepo: Boolean(options.monorepo),
+    workspace: Boolean(options.workspace),
+  };
+
+  if (options.template !== undefined) {
+    answers.templateName = options.template;
+  }
+
+  if (options.remote !== undefined) {
+    answers.remoteUrl = options.remote;
+  }
+
+  if (options.namespace !== undefined) {
+    answers.namespace = options.namespace;
+  }
+
+  if (options.appName !== undefined) {
+    answers.appName = options.appName;
+  }
+
+  if (options.appsDir !== undefined) {
+    answers.appsDirectory = options.appsDir;
+  }
+
+  if (options.librariesDir !== undefined) {
+    answers.packagesDirectory = options.librariesDir;
+  }
+
+  if (options.packages !== undefined) {
+    answers.packages = parseCommaList(options.packages);
+  }
+
+  return answers;
+}
+
+function initAnswersFromFlags(options: InitCliOptions): InitAnswers {
+  const answers: InitAnswers = {};
+
+  if (options.packageManager !== undefined) {
+    answers.packageManager = parseEnumFlag('package-manager', options.packageManager, packageManagers);
+  }
+
+  if (options.agents !== undefined) {
+    answers.agents = parseAgentsFlag(options.agents);
+  }
+
+  if (options.addons !== undefined) {
+    answers.addons = parseCommaList(options.addons);
+  }
+
+  if (options.skills !== undefined) {
+    answers.skills = parseCommaList(options.skills);
+  }
+
+  return answers;
+}
+
+function addCreateFlags(command: Command) {
+
+  return command
+    .option('--kind <app|library>', 'project kind')
+    .option('--template <name>', 'template name for the project kind')
+    .option('--package-manager <name>', 'package manager (default: pnpm)')
+    .option('--formatter <name>', 'formatter (default: prettier)')
+    .option('--agents <list>', 'comma-separated coding agents (default: all)')
+    .option('--git', 'initialize Git and create the foundation commit')
+    .option('--no-git', 'skip Git initialization')
+    .option('--remote <url>', 'Git remote URL to add as origin')
+    .option('--monorepo', 'create an app as a workspace with apps and libraries')
+    .option('--workspace', 'create a library as a workspace of packages')
+    .option('--namespace <name>', 'package name namespace, or none for bare names')
+    .option('--app-name <name>', 'app package short name in a monorepo (default: web)')
+    .option('--apps-dir <path>', 'apps directory in a monorepo (default: apps)')
+    .option('--libraries-dir <path>', 'libraries directory (default: packages)')
+    .option('--packages <list>', 'comma-separated library package short names')
+    .option('-y, --yes', 'run non-interactively and apply the plan')
+    .option('--conflicts <keep|overwrite>', 'conflict policy when using --yes (default: keep)');
+}
+
+function addInitFlags(command: Command) {
+
+  return command
+    .option('--package-manager <name>', 'package manager when it cannot be detected')
+    .option('--agents <list>', 'comma-separated coding agents (default: all)')
+    .option('--addons <list>', 'comma-separated detected integrations to adopt (default: all detected)')
+    .option('--skills <list>', 'comma-separated skills to enable (default: all available)')
+    .option('-y, --yes', 'run non-interactively and apply the plan')
+    .option('--conflicts <keep|overwrite>', 'conflict policy when using --yes (default: keep)');
+}
 
 export function createProgram(version: string, dependencies = defaultDependencies) {
   const program = new Command('jfdevelops')
@@ -30,26 +163,40 @@ export function createProgram(version: string, dependencies = defaultDependencie
     .helpOption('-h, --help', 'Show command help')
     .helpCommand(false);
 
-  const create = program
-    .command('create')
-    .description('Create a new app or library from a reviewed template')
-    .argument('[name]', 'package name, or . to create the project in the current directory')
-    .action(async (directory: string | undefined) => {
-      if (!dependencies.isInteractive()) {
-        program.error('jfdevelops create is interactive; run it in a terminal.');
-      }
+  const create = addCreateFlags(
+    program.command('create').description('Create a new app or library from a reviewed template').argument('[name]', 'package name, or . to create the project in the current directory'),
+  ).action(async (directory: string | undefined, options: CreateCliOptions) => {
+    const wantsNonInteractive = Boolean(options.yes) || !dependencies.isInteractive();
 
+    if (wantsNonInteractive && !options.yes) {
+      program.error('jfdevelops create is interactive; pass --yes with flags, or run it in a terminal.');
+    }
+
+    if (wantsNonInteractive && options.kind === undefined) {
+      program.error('Missing --kind. Use app or library.');
+    }
+
+    try {
       const status = await runCreate({
         ...(directory ? { directory } : {}),
         version,
         prompter: dependencies.createPrompter(),
+        ...(wantsNonInteractive
+          ? {
+              answers: createAnswersFromFlags(options),
+              nonInteractive: { conflicts: parseConflictPolicy(options.conflicts) },
+            }
+          : {}),
         ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
       });
 
       if (status === 'incomplete' || status === 'failed') {
         process.exitCode = 1;
       }
-    });
+    } catch (error) {
+      program.error(error instanceof Error ? error.message : String(error));
+    }
+  });
 
   create
     .command('skills')
@@ -75,26 +222,36 @@ export function createProgram(version: string, dependencies = defaultDependencie
       }
     });
 
-  program
-    .command('init')
-    .description('Adopt an existing project: choose skills and review every change before it is applied')
-    .argument('[directory]', 'project directory', '.')
-    .action(async (directory: string) => {
-      if (!dependencies.isInteractive()) {
-        program.error('jfdevelops init is interactive; run it in a terminal.');
+  addInitFlags(program.command('init').description('Adopt an existing project: choose skills and review every change before it is applied').argument('[directory]', 'project directory', '.')).action(
+    async (directory: string, options: InitCliOptions) => {
+      const wantsNonInteractive = Boolean(options.yes) || !dependencies.isInteractive();
+
+      if (wantsNonInteractive && !options.yes) {
+        program.error('jfdevelops init is interactive; pass --yes with flags, or run it in a terminal.');
       }
 
-      const status = await runInit({
-        directory,
-        version,
-        prompter: dependencies.createPrompter(),
-        ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
-      });
+      try {
+        const status = await runInit({
+          directory,
+          version,
+          prompter: dependencies.createPrompter(),
+          ...(wantsNonInteractive
+            ? {
+                answers: initAnswersFromFlags(options),
+                nonInteractive: { conflicts: parseConflictPolicy(options.conflicts) },
+              }
+            : {}),
+          ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+        });
 
-      if (status === 'incomplete' || status === 'failed') {
-        process.exitCode = 1;
+        if (status === 'incomplete' || status === 'failed') {
+          process.exitCode = 1;
+        }
+      } catch (error) {
+        program.error(error instanceof Error ? error.message : String(error));
       }
-    });
+    },
+  );
 
   async function runAddCommand(options: { directory: string; kind?: AdditionKind; name?: string }) {
     if (!dependencies.isInteractive()) {

@@ -7,19 +7,34 @@ import { detectProject, type ProjectDetection } from '../../detect/project.js';
 import { createInstructionEdits } from '../../instructions/edits.js';
 import { applyChangePlan } from '../../plan/apply.js';
 import { createChangePlan } from '../../plan/create.js';
+import type { ConflictResolution } from '../../plan/apply.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
-import { agentNames, detectAgents } from '../../skills/agents.js';
+import { agentNames, detectAgents, type AgentName } from '../../skills/agents.js';
 import { buildSkillCatalog, type SkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
 import { findSharedSkillsPackage } from '../../skills/shared.js';
 import { chooseAgents } from '../agents.js';
 import { renderPlanTree, reportApplyResult, resolveConflicts } from '../review.js';
 import { createInitConfig } from './config.js';
-import { confirmIntegrations, filterAddonSkills } from './integrations.js';
-import { findMissingSourceSkills, selectSkills } from './skills.js';
-import { confirmTargets } from './targets.js';
+import { confirmIntegrations, filterAddonSkills, resolveIntegrations } from './integrations.js';
+import { findMissingSourceSkills, resolveSkills, selectSkills } from './skills.js';
+import { confirmTargets, resolveTargets } from './targets.js';
 
-export type InitOptions = { directory: string; version: string; prompter: Prompter; installDependency?: DependencyInstaller };
+export type InitAnswers = {
+  packageManager?: PackageManagerName;
+  agents?: AgentName[];
+  addons?: string[];
+  skills?: string[];
+};
+
+export type InitOptions = {
+  directory: string;
+  version: string;
+  prompter: Prompter;
+  answers?: InitAnswers;
+  nonInteractive?: { conflicts: ConflictResolution };
+  installDependency?: DependencyInstaller;
+};
 
 export type InitStatus = 'complete' | 'incomplete' | 'unchanged' | 'cancelled' | 'failed';
 
@@ -31,10 +46,27 @@ function hasCliDependency(project: ProjectDetection) {
   return '@jfdevelops/cli' in { ...dependencies, ...devDependencies, ...optionalDependencies };
 }
 
-async function choosePackageManager(project: ProjectDetection, prompter: Prompter) {
+async function choosePackageManager(
+  project: ProjectDetection,
+  prompter: Prompter,
+  requested: PackageManagerName | undefined,
+  isNonInteractive: boolean,
+) {
   if (project.packageManager) {
+    if (requested && requested !== project.packageManager.name) {
+      throw new Error(`This project uses ${project.packageManager.name}; --package-manager ${requested} does not match.`);
+    }
 
     return project.packageManager.name;
+  }
+
+  if (requested) {
+
+    return requested;
+  }
+
+  if (isNonInteractive) {
+    throw new Error(`Missing --package-manager. Use one of: ${packageManagers.join(', ')}.`);
   }
 
   return prompter.select({
@@ -59,18 +91,28 @@ function reportCatalog(catalog: SkillCatalog, prompter: Prompter) {
   }
 }
 
-async function adoptProject({ directory, version, prompter, installDependency = installDevelopmentDependency }: InitOptions): Promise<InitStatus> {
+async function adoptProject({
+  directory,
+  version,
+  prompter,
+  answers,
+  nonInteractive,
+  installDependency = installDevelopmentDependency,
+}: InitOptions): Promise<InitStatus> {
   const project = await detectProject(directory);
+  const isNonInteractive = Boolean(nonInteractive);
 
   for (const warning of project.warnings) {
     prompter.warn(warning);
   }
 
-  const packageManager = await choosePackageManager(project, prompter);
-  const targets = await confirmTargets(project.targets, prompter);
+  const packageManager = await choosePackageManager(project, prompter, answers?.packageManager, isNonInteractive);
+  const targets = isNonInteractive ? resolveTargets(project.targets, prompter) : await confirmTargets(project.targets, prompter);
   const scopes = ['.', ...targets.map((target) => target.path)];
   const integrations = await detectIntegrations(project.root, scopes);
-  const addons = await confirmIntegrations(integrations, project.config?.addons ?? [], prompter);
+  const addons = isNonInteractive
+    ? resolveIntegrations(integrations, project.config?.addons ?? [], answers?.addons, prompter)
+    : await confirmIntegrations(integrations, project.config?.addons ?? [], prompter);
   const discoveredCatalog = await buildSkillCatalog(project.root, scopes, [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
   const catalog = filterAddonSkills(discoveredCatalog, integrations, addons);
 
@@ -84,9 +126,13 @@ async function adoptProject({ directory, version, prompter, installDependency = 
     prompter.warn(`${skill.name} is enabled but ${skill.source.package} is not installed; its files are left as they are.`);
   }
 
-  const selectedSkills = await selectSkills(catalog, enabledSkills, prompter);
+  const selectedSkills = isNonInteractive
+    ? resolveSkills(catalog, enabledSkills, answers?.skills, prompter)
+    : await selectSkills(catalog, enabledSkills, prompter);
   const detectedAgents = detectAgents(project.root);
-  const agents = await chooseAgents(prompter, project.config?.agents ?? (detectedAgents.length > 0 ? detectedAgents : [...agentNames]));
+  const agents = isNonInteractive
+    ? (answers?.agents ?? [...agentNames])
+    : await chooseAgents(prompter, project.config?.agents ?? (detectedAgents.length > 0 ? detectedAgents : [...agentNames]));
   const missingSourceNames = new Set(missingSourceSkills.map((skill) => skill.name));
   const ownerNames = new Set([...selectedSkills, ...enabledSkills].map((skill) => skill.name).filter((name) => !missingSourceNames.has(name)));
   const files = (await Promise.all(selectedSkills.map((skill) => createSkillInstallFiles(skill, agents)))).flat();
@@ -124,9 +170,9 @@ async function adoptProject({ directory, version, prompter, installDependency = 
 
   prompter.note(plannedChanges.join('\n'), 'Planned changes');
 
-  const resolutions = await resolveConflicts(plan, prompter);
+  const resolutions = await resolveConflicts(plan, prompter, nonInteractive?.conflicts);
 
-  if (!(await prompter.confirm({ message: 'Apply these changes?', initialValue: true }))) {
+  if (!nonInteractive && !(await prompter.confirm({ message: 'Apply these changes?', initialValue: true }))) {
     throw new PromptCancelledError('Declined');
   }
 
