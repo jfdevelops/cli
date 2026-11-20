@@ -12,6 +12,10 @@ pnpm docs:check
 ```
 
 The generator writes `docs.json` and `meta.json`; these files are ignored.
+`pnpm check` also generates and validates these files, and CI checks the same
+workflow on Linux and Windows with Node.js 22 and 24. The docs site runs the
+generator after fetching its pinned repository commit; generated metadata does
+not need to be committed.
 Generation skips the TypeDoc reference because this package exposes an executable,
 not a public TypeScript import API. The hand-written command reference documents
 its public interface. No formatter or Markdown linter is configured in this repository;

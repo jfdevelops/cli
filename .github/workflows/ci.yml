@@ -33,6 +33,8 @@ jobs:
       - run: pnpm test
       - run: pnpm check:skills
       - run: pnpm check:package
+      - run: pnpm docs:generate
+      - run: pnpm docs:check
 
   changeset:
     name: Changeset
