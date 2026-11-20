@@ -1,8 +1,18 @@
-# Getting started
+---
+title: Getting started
+description: Create a project, adopt an existing one, and keep its skills current.
+order: 30
+---
 
 `@jfdevelops/cli` sets up projects with the jfdevelops conventions and the agent skills your dependencies publish. It runs on Node.js 22.12.0 or newer with npm, pnpm, yarn, or bun.
 
-Every command that changes files shows the full plan first and writes nothing until you confirm. Cancelling (Escape or Ctrl+C) at any prompt leaves the project untouched. The one exception is `add addon`: when you confirm installing a missing package, the install happens before its skills are chosen, and the command tells you if you cancel afterwards.
+In this guide you will:
+
+- Create a new app or library.
+- Adopt an existing repository.
+- Check and refresh installed skills.
+
+Interactive file changes are previewed before confirmation. With `--yes`, `create` and `init` apply without prompting. Cancellation stops the remaining work; it does not roll back earlier package installs or completed steps. In particular, `add addon`, `skills update`, and `update` can retain package changes when a later review is cancelled.
 
 Agents and scripts can run `create` and `init` with `--yes` and flags instead of prompts—for example `jfdevelops create my-app --kind app --yes` or `jfdevelops init --yes`. See [Command reference](commands.md) for the flag defaults.
 
@@ -19,7 +29,7 @@ Pass `.` instead of a name to create the project in the current directory, named
 3. Formats the generated files, then runs `format:check` and `build`.
 4. Optionally initializes Git on `main` with the commit `chore(init): initialize project`, and adds a pasted remote URL as `origin` without pushing.
 
-The destination must be empty or not exist yet. Before you confirm, `create` shows the folder tree it will write. For an app you can also choose **Monorepo**, which creates a workspace with the app in `apps/` and libraries in `packages/`. A library project can add more packages too, which makes it a workspace of libraries. Both ask you to name each package as you go; see [the `create` command](commands.md#monorepo).
+The destination may contain files: differing paths go through conflict review. A destination with `jfdevelops.json` is refused; use `init` instead. Before you confirm, `create` shows the folder tree it will write. For an app you can also choose **Monorepo**, which creates a workspace with the app in `apps/` and libraries in `packages/`. A library project can add more packages too, which makes it a workspace of libraries. Both ask you to name each package as you go; see [the `create` command](commands.md#monorepo).
 
 ## Adopt an existing project
 
@@ -50,3 +60,9 @@ Commit all of these. Skill copies are files in your repository so every collabor
 - `jfdevelops add` enables another skill, adopts an integration, or adds a workspace package.
 
 See the [command reference](commands.md) for every command and option.
+
+## Next steps
+
+- [Install the CLI](installation.md).
+- [Read the command reference](commands.md).
+- [Manage skills and conflicts](skills.md).

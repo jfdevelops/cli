@@ -1,4 +1,8 @@
-# `jfdevelops.json`
+---
+title: Configuration
+description: Understand the project setup and file ownership recorded in jfdevelops.json.
+order: 60
+---
 
 `jfdevelops.json` records how the CLI set up the project and which files it manages. The CLI writes it after each successful change; you normally do not edit it by hand. Your package manifests stay the source of truth for dependencies, and the file never contains secrets or environment values.
 
@@ -47,3 +51,9 @@ This is the compatibility policy for future releases:
 - There is no hosted JSON Schema URL yet; none will be referenced from the file until one is published.
 
 Because the exact CLI version is a development dependency of the project, everyone working on it runs the same CLI and reads the file the same way.
+
+## Next steps
+
+- [Install the CLI](installation.md).
+- [Read the command reference](commands.md).
+- [Manage skills and conflicts](skills.md).

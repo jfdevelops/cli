@@ -1,6 +1,18 @@
-# Authoring skills in a library
+---
+title: Authoring skills
+description: Register and publish agent skills from a library package.
+order: 70
+---
 
-A library publishes skills by bundling skill directories in its npm package and listing them in `package.json`:
+A library publishes skills by bundling skill directories in its npm package and listing them in `package.json`. Use `create skills` to register those directories and verify what consumers will receive.
+
+In this guide you will:
+
+- Register or scaffold a skill directory.
+- Include its resources in the published package.
+- Verify the package consumers will install.
+
+## Register a skill
 
 ```json
 {
@@ -14,7 +26,7 @@ A library publishes skills by bundling skill directories in its npm package and 
 
 Each path is a directory inside the package containing a `SKILL.md` whose frontmatter `name` matches both the registration and the directory name:
 
-```md
+```text
 ---
 name: build-forms
 description: Build forms with validation and accessible errors.
@@ -43,3 +55,9 @@ npx @jfdevelops/cli create skills
 Running it again on a package whose skills are all registered changes nothing and repeats the publication check, so it is safe in a release checklist. The CLI never publishes; release the library with your usual process.
 
 After publishing, consumers get the skills with `jfdevelops init`, `jfdevelops add skill <name>`, or, for integrations, `jfdevelops add addon <name>`, and keep them current with `jfdevelops skills sync`.
+
+## Next steps
+
+- [Install the CLI](installation.md).
+- [Read the command reference](commands.md).
+- [Manage skills and conflicts](skills.md).
