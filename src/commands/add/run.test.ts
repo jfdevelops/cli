@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, assert, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { createChangePlan } from '../../plan/create.js';
@@ -236,6 +236,17 @@ describe('add addon', () => {
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toContain('portless-dev');
   });
 
+  // Stands in for the package manager: installs @jfdevelops/docs, which ships no skills.
+  const installDocs: PackageInstaller = async ({ directory, packageName }) => {
+    const manifestPath = join(directory, 'package.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, Record<string, string>>;
+
+    manifest.devDependencies = { ...manifest.devDependencies, [packageName]: '0.1.0' };
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await mkdir(join(directory, 'node_modules', packageName), { recursive: true });
+    await writeFile(join(directory, 'node_modules', packageName, 'package.json'), JSON.stringify({ name: packageName, version: '0.1.0' }));
+  };
+
   it('sets up docs generation with scripts, ignore entries, a README, and a docs workflow', async () => {
     const projectRoot = await createInitializedProject(
       createAppFiles({
@@ -244,15 +255,6 @@ describe('add addon', () => {
       }),
       [],
     );
-    const installDocs: PackageInstaller = async ({ directory, packageName }) => {
-      const manifestPath = join(directory, 'package.json');
-      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, Record<string, string>>;
-
-      manifest.devDependencies = { ...manifest.devDependencies, [packageName]: '0.1.0' };
-      await writeFile(manifestPath, JSON.stringify(manifest));
-      await mkdir(join(directory, 'node_modules', packageName), { recursive: true });
-      await writeFile(join(directory, 'node_modules', packageName, 'package.json'), JSON.stringify({ name: packageName, version: '0.1.0' }));
-    };
     const { status, transcript } = await add(projectRoot, { kind: 'addon', name: 'docs', installPackage: installDocs });
 
     expect(status).toBe('complete');
@@ -272,6 +274,45 @@ describe('add addon', () => {
 
     expect(config?.addons).toEqual([{ name: 'docs', options: { package: '.', name: 'Forms Kit' } }]);
     expect(config?.managedFiles).toContainEqual(expect.objectContaining({ path: '.github/workflows/docs.yml', owner: { type: 'addon', name: 'docs' } }));
+  });
+
+  it('edits a managed package.json and .gitignore and keeps them managed', async () => {
+    const projectRoot = await createInitializedProject(createAppFiles({ '.gitignore': 'node_modules/\n' }), []);
+    const config = await readProjectConfig(projectRoot);
+    const project = { type: 'project' as const };
+
+    assert(config);
+    await writeProjectConfig(projectRoot, {
+      ...config,
+      managedFiles: [
+        ...config.managedFiles,
+        { path: '.gitignore', owner: project, sha256: hashContent(await readText(projectRoot, '.gitignore')) },
+        { path: 'package.json', owner: project, sha256: hashContent(await readText(projectRoot, 'package.json')) },
+      ],
+    });
+
+    const { status } = await add(projectRoot, { kind: 'addon', name: 'docs', installPackage: installDocs });
+    const managedFiles = (await readProjectConfig(projectRoot))?.managedFiles ?? [];
+
+    expect(status).toBe('complete');
+    expect(JSON.parse(await readText(projectRoot, 'package.json')).scripts).toMatchObject({ 'docs:generate': 'jfdevelops-docs generate' });
+    expect(managedFiles).toContainEqual({ path: '.gitignore', owner: project, sha256: hashContent(await readText(projectRoot, '.gitignore')) });
+    // Installing the package changed package.json first, so it keeps its record and stays marked as locally edited.
+    expect(managedFiles).toContainEqual(expect.objectContaining({ path: 'package.json', owner: project }));
+  });
+
+  it('installs docs at the workspace root even when a workspace package already has it', async () => {
+    const files = createWorkspaceFiles();
+    const projectRoot = await createInitializedProject(
+      { ...files, 'packages/ui/package.json': { name: '@acme/ui', version: '0.0.0', devDependencies: { '@jfdevelops/docs': '0.1.0' } } },
+      [],
+    );
+    const { status, transcript } = await add(projectRoot, { kind: 'addon', name: 'docs', installPackage: installDocs });
+
+    expect(status).toBe('complete');
+    expect(transcript).toContain('? Install @jfdevelops/docs in the project root with `pnpm add --save-dev --workspace-root @jfdevelops/docs`?');
+    expect(transcript.some((line) => line.startsWith('? Where should'))).toBe(false);
+    expect(JSON.parse(await readText(projectRoot, 'package.json')).devDependencies).toEqual({ '@jfdevelops/docs': '0.1.0' });
   });
 
   it('rejects unsupported addons', async () => {

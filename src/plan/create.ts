@@ -6,7 +6,8 @@ import { hashContent, type FileContent } from './hash.js';
 
 export type DesiredFile = { path: string; owner: ManagedFileOwner; content: FileContent };
 
-// A targeted change to a project-owned text file, such as a marked section; the file stays unmanaged.
+// A targeted change to a text file, such as a marked section. A project-owned file stays unmanaged; a managed
+// file keeps its owner.
 export type FileEdit = { path: string; transform: (current: string | undefined) => string };
 
 export type ConflictReason = 'locally-edited' | 'unmanaged' | 'owned-elsewhere' | 'edited-before-removal' | 'not-a-file';
@@ -132,8 +133,14 @@ function planRemoval(record: ManagedFile, current: CurrentFile): PlannedChange {
   return { ...target, action: 'conflict', reason, current: current.kind === 'file' ? current.content : undefined, desired: undefined };
 }
 
-function planEdit(edit: FileEdit, current: CurrentFile): PlannedChange | undefined {
-  const target = { path: edit.path, owner: { type: 'project' as const }, currentSha256: getCurrentSha256(current) };
+/**
+ * Plans a targeted edit. Editing a managed file that still matches its record updates the record under the
+ * same owner, so a later refresh does not mistake the edit for a local change. A managed file that was
+ * already edited locally keeps its old record, and so stays marked as locally edited.
+ */
+function planEdit(edit: FileEdit, current: CurrentFile, record: ManagedFile | undefined): PlannedChange | undefined {
+  const currentSha256 = getCurrentSha256(current);
+  const target = { path: edit.path, owner: { type: 'project' as const }, currentSha256 };
 
   if (current.kind === 'other') {
 
@@ -143,10 +150,20 @@ function planEdit(edit: FileEdit, current: CurrentFile): PlannedChange | undefin
   const currentText = current.kind === 'file' ? current.content.toString('utf8') : undefined;
   const content = edit.transform(currentText);
 
-  return content === currentText ? undefined : { ...target, action: 'edit', content };
+  if (content === currentText) {
+
+    return undefined;
+  }
+
+  if (record && currentSha256 === record.sha256) {
+
+    return { path: edit.path, owner: record.owner, currentSha256, action: 'update', content, sha256: hashContent(content) };
+  }
+
+  return { ...target, action: 'edit', content };
 }
 
-function validateFiles(files: Array<DesiredFile | FileEdit>, ownerKeys: Set<string>, records: Map<string, ManagedFile>) {
+function validateFiles(files: Array<DesiredFile | FileEdit>, ownerKeys: Set<string>) {
   const paths = new Set<string>();
 
   for (const file of files) {
@@ -160,10 +177,6 @@ function validateFiles(files: Array<DesiredFile | FileEdit>, ownerKeys: Set<stri
 
     if ('owner' in file && !ownerKeys.has(getOwnerKey(file.owner))) {
       throw new ChangePlanError(`${file.path} belongs to ${getOwnerKey(file.owner)}, which is not being planned`);
-    }
-
-    if ('transform' in file && records.has(file.path)) {
-      throw new ChangePlanError(`${file.path} is managed and cannot receive a targeted edit`);
     }
 
     paths.add(file.path);
@@ -193,7 +206,7 @@ export async function createChangePlan({ projectRoot, managedFiles = [], files, 
   const ownerKeys = new Set(owners.map((owner) => getOwnerKey(owner)));
   const records = new Map(managedFiles.map((file) => [file.path, file]));
 
-  validateFiles([...files, ...edits], ownerKeys, records);
+  validateFiles([...files, ...edits], ownerKeys);
 
   const desiredPaths = new Set(files.map((file) => file.path));
   const removals = isRemovingMissingFiles ? managedFiles.filter((record) => ownerKeys.has(getOwnerKey(record.owner)) && !desiredPaths.has(record.path)) : [];
@@ -201,7 +214,7 @@ export async function createChangePlan({ projectRoot, managedFiles = [], files, 
     planDesiredFile(file, records.get(file.path), await readCurrentFile(join(projectRoot, file.path)), ownerKeys),
   );
   const removalChanges = removals.map(async (record) => planRemoval(record, await readCurrentFile(join(projectRoot, record.path))));
-  const editChanges = edits.map(async (edit) => planEdit(edit, await readCurrentFile(join(projectRoot, edit.path))));
+  const editChanges = edits.map(async (edit) => planEdit(edit, await readCurrentFile(join(projectRoot, edit.path)), records.get(edit.path)));
   const changes = (await Promise.all([...desiredChanges, ...removalChanges, ...editChanges]))
     .filter((change) => change !== undefined)
     .sort((left, right) => compareStrings(left.path, right.path));

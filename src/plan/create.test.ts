@@ -182,13 +182,26 @@ describe('createChangePlan', () => {
     expect(plan.managedFiles).toEqual([]);
   });
 
-  it('rejects targeted edits to managed files', async () => {
-    const projectRoot = await createProject({ 'a.md': 'a' });
-    const edits = [{ path: 'a.md', transform: () => 'b' }];
+  it('edits managed files under their owner and keeps local edits marked', async () => {
+    const projectRoot = await createProject({ 'clean.md': 'a', 'edited.md': 'local' });
+    const project: ManagedFileOwner = { type: 'project' };
+    const append = (current: string | undefined) => `${current}+`;
+    const plan = await createChangePlan({
+      projectRoot,
+      owners: [],
+      files: [],
+      edits: [
+        { path: 'clean.md', transform: append },
+        { path: 'edited.md', transform: append },
+      ],
+      managedFiles: [createRecord('clean.md', 'a', project), createRecord('edited.md', 'original', project)],
+    });
 
-    await expect(createChangePlan({ projectRoot, owners: [skill], files: [], edits, managedFiles: [createRecord('a.md', 'a')] })).rejects.toThrow(
-      'a.md is managed and cannot receive a targeted edit',
-    );
+    expect(plan.changes).toMatchObject([
+      { path: 'clean.md', action: 'update', owner: project, content: 'a+' },
+      { path: 'edited.md', action: 'edit', content: 'local+' },
+    ]);
+    expect(plan.managedFiles).toEqual([createRecord('clean.md', 'a+', project), createRecord('edited.md', 'original', project)]);
   });
 
   it('plans nothing on a repeat run after applying', async () => {

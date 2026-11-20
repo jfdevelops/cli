@@ -19,7 +19,7 @@ async function installAddon({ additions, prompter, installPackage }: AddAddonOpt
   const { project, config } = additions;
   const scopes = [...new Set(['.', ...config.targets.map((target) => target.path)])];
   const scope =
-    scopes.length === 1
+    scopes.length === 1 || addon.isRootOnly
       ? '.'
       : await prompter.select({
           message: `Where should ${addon.package} be installed?`,
@@ -97,7 +97,10 @@ export async function addAddon(options: AddAddonOptions): Promise<AddStatus> {
     return 'unchanged';
   }
 
-  const isInstalled = additions.integrations.some((integration) => integration.name === addon.name);
+  // A root-only addon installed only in workspace packages is installed at the root as well.
+  const isInstalled = additions.integrations.some(
+    (integration) => integration.name === addon.name && (!addon.isRootOnly || integration.scopes.includes('.')),
+  );
 
   if (!isInstalled) {
     await installAddon(options, addon);
