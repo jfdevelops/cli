@@ -1,8 +1,10 @@
-export type AddonDefinition = { name: string; package: string; isDevelopment: boolean; description: string };
+// isRootOnly marks an addon whose tooling runs from the project root, so its package must be installed there.
+export type AddonDefinition = { name: string; package: string; isDevelopment: boolean; description: string; isRootOnly?: boolean };
 
 // Integrations offered for installation. Individual TanStack and jfdevelops libraries are also accepted by package name.
 export const knownAddons: AddonDefinition[] = [
   { name: 'convex', package: 'convex', isDevelopment: false, description: 'Convex backend' },
+  { name: 'docs', package: '@jfdevelops/docs', isDevelopment: true, description: 'Versioned docs, navigation, and API reference', isRootOnly: true },
   { name: 'portless', package: 'portless', isDevelopment: true, description: 'Named local development URLs' },
 ];
 
@@ -10,7 +12,7 @@ const reservedPackages = new Set(['@jfdevelops/cli', '@jfdevelops/skills']);
 
 /** Resolves a supported addon by name; addon names match the integration names reported by detection. */
 export function resolveAddon(name: string): AddonDefinition | undefined {
-  const known = knownAddons.find((addon) => addon.name === name);
+  const known = knownAddons.find((addon) => addon.name === name || addon.package === name);
 
   if (known) {
 

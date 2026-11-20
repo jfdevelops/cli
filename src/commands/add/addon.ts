@@ -4,7 +4,8 @@ import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
 import { findAdditions, type ProjectAdditions } from './additions.js';
 import { resolveAddon, type AddonDefinition } from './addons.js';
-import { applyAdditions, type AddStatus } from './apply.js';
+import { applyAdditions, type AdditionChanges, type AddStatus } from './apply.js';
+import { createDocsSetup, docsAddonName, isDocsSetUp } from './docs.js';
 import { chooseSource } from './skill.js';
 
 type AddAddonOptions = { directory: string; additions: ProjectAdditions; name: string; prompter: Prompter; installPackage: PackageInstaller };
@@ -18,7 +19,7 @@ async function installAddon({ additions, prompter, installPackage }: AddAddonOpt
   const { project, config } = additions;
   const scopes = [...new Set(['.', ...config.targets.map((target) => target.path)])];
   const scope =
-    scopes.length === 1
+    scopes.length === 1 || addon.isRootOnly
       ? '.'
       : await prompter.select({
           message: `Where should ${addon.package} be installed?`,
@@ -68,26 +69,46 @@ async function chooseAddonSkills(skills: CatalogSkill[], prompter: Prompter) {
   return selected;
 }
 
+// Options, files, and edits an addon sets up beyond recording it; only docs has any.
+async function createAddonSetup(addon: AddonDefinition, additions: ProjectAdditions, prompter: Prompter): Promise<{ options: Record<string, string> } & AdditionChanges> {
+  if (addon.name === docsAddonName) {
+
+    return createDocsSetup(additions, prompter);
+  }
+
+  return { options: {} };
+}
+
+// Whether an enabled addon still needs its setup, as docs does when it was adopted by init or its setup failed.
+function needsSetup(addon: AddonDefinition, options: Record<string, unknown>) {
+
+  return addon.name === docsAddonName && !isDocsSetUp(options);
+}
+
 /**
  * Adopts an installed integration, or installs its package first after confirmation, then records the
- * addon and offers the skills its package provides. Addon-specific scaffolding is not generated.
+ * addon, sets up what it needs, and offers the skills its package provides.
  */
 export async function addAddon(options: AddAddonOptions): Promise<AddStatus> {
   const { directory, additions, name, prompter } = options;
+  const addon = resolveAddon(name);
 
-  if (additions.config.addons.some((addon) => addon.name === name)) {
-    prompter.outro(`${name} is already enabled.`);
+  if (!addon) {
+    throw new Error(`Unsupported addon: ${name}. Supported: convex, docs, portless, and individual @tanstack/* or @jfdevelops/* libraries.`);
+  }
+
+  const enabled = additions.config.addons.find((candidate) => candidate.name === addon.name);
+
+  if (enabled && !needsSetup(addon, enabled.options)) {
+    prompter.outro(`${addon.name} is already enabled.`);
 
     return 'unchanged';
   }
 
-  const addon = resolveAddon(name);
-
-  if (!addon) {
-    throw new Error(`Unsupported addon: ${name}. Supported: convex, portless, and individual @tanstack/* or @jfdevelops/* libraries.`);
-  }
-
-  const isInstalled = additions.integrations.some((integration) => integration.name === addon.name);
+  // A root-only addon installed only in workspace packages is installed at the root as well.
+  const isInstalled = additions.integrations.some(
+    (integration) => integration.name === addon.name && (!addon.isRootOnly || integration.scopes.includes('.')),
+  );
 
   if (!isInstalled) {
     await installAddon(options, addon);
@@ -96,7 +117,20 @@ export async function addAddon(options: AddAddonOptions): Promise<AddStatus> {
   try {
     const current = await findAdditions(directory, [addon.name]);
     const skills = await chooseAddonSkills(current.skills.filter((skill) => skill.source.package === addon.package), prompter);
-    const status = await applyAdditions(current, { skills, addons: [...current.config.addons, { name: addon.name, options: {} }] }, prompter);
+    const { options: addonOptions, ...setup } = await createAddonSetup(addon, current, prompter);
+    const otherAddons = current.config.addons.filter((candidate) => candidate.name !== addon.name);
+    const status = await applyAdditions(
+      current,
+      {
+        ...setup,
+        skills,
+        addons: [...otherAddons, { name: addon.name, options: addonOptions }],
+        // Without its options the addon stays unfinished, so running the same command again repeats the setup.
+        addonsOnFailedEdits: [...otherAddons, { name: addon.name, options: {} }],
+        editRetryHint: `Fix the reported files and run jfdevelops add addon ${addon.name} again.`,
+      },
+      prompter,
+    );
 
     if (status === 'complete') {
       prompter.outro(`Added ${addon.name}.`);

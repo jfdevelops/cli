@@ -17,7 +17,7 @@ Every command that changes files previews the full plan, shows a diff for anythi
 | `init [directory]` | Adopt an existing project: confirm targets and integrations, choose skills, review every change |
 | `add` / `add --list` | Browse or list compatible additions |
 | `add skill <name>` | Enable one skill from an installed package |
-| `add addon <name>` | Adopt or install Convex, Portless, or an individual TanStack or jfdevelops library |
+| `add addon <name>` | Adopt or install Convex, docs tooling, Portless, or an individual TanStack or jfdevelops library |
 | `add package <name>` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks |
 | `update [directory]` | Upgrade the CLI and review project setup updates |
 | `skills update [skills...]` | Update all enabled skills or selected names |

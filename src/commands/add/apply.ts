@@ -17,6 +17,8 @@ export type AddStatus = 'complete' | 'incomplete' | 'unchanged' | 'cancelled' | 
 export type AdditionChanges = {
   skills?: CatalogSkill[];
   addons?: ProjectConfig['addons'];
+  // Addons to record instead when an edit or new file fails; files already written keep their addon owner.
+  addonsOnFailedEdits?: ProjectConfig['addons'];
   targets?: ProjectConfig['targets'];
   // New managed scaffold files; existing project-owned files remain outside this partial plan.
   files?: DesiredFile[];
@@ -58,7 +60,7 @@ export async function applyAdditions(additions: ProjectAdditions, changes: Addit
     return {
       ...config,
       targets: hasFailedEdits ? config.targets : (changes.targets ?? config.targets),
-      addons: changes.addons ?? config.addons,
+      addons: (hasFailedEdits ? changes.addonsOnFailedEdits : undefined) ?? changes.addons ?? config.addons,
       skills: [...config.skills, ...addedSkills.map((skill) => toEnabledSkill(skill))].sort((left, right) => compareStrings(left.name, right.name)),
       managedFiles,
     };
