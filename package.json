@@ -19,7 +19,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "check": "pnpm typecheck && pnpm test && pnpm check:skills && pnpm check:package",
+    "check": "pnpm typecheck && pnpm test && pnpm check:skills && pnpm check:package && pnpm docs:generate && pnpm docs:check",
     "check:skills": "node scripts/check-skills.mjs",
     "typecheck": "tsc",
     "test": "vitest run",
