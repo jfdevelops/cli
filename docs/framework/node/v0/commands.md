@@ -1,4 +1,8 @@
-# Command reference
+---
+title: Command reference
+description: Look up commands, options, terminal requirements, and exit codes.
+order: 40
+---
 
 Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` once the CLI is a dependency of the project. `jfdevelops --help` and `jfdevelops <command> --help` list every option.
 
@@ -16,6 +20,7 @@ Run commands with `npx @jfdevelops/cli <command>`, or `jfdevelops <command>` onc
 | `skills update [skills...]` | Update all enabled skills or selected names from published packages | Yes |
 | `skills [directory]` | Report whether enabled skills match installed versions | No |
 | `skills sync [directory]` | Update skill copies to the installed versions | Yes |
+| `skills outdated [directory]` | Compare skill copies with upstream main | No |
 
 `create` and `init` accept `--yes` so agents and scripts can run them without a terminal. Other mutating commands still refuse to run without a terminal and exit with code 1.
 
@@ -167,3 +172,9 @@ Updates all enabled skills by default, or only the named skills. Use `-d, --dire
 ## `jfdevelops update [directory]`
 
 Upgrades the project's `@jfdevelops/cli` dependency to the latest published release, then runs that installed release to refresh the project. It updates enabled skills, runs init to review newly detected integrations/skills, and regenerates tooling from the project's recorded templates and formatter. The planned file tree and local-edit conflicts are reviewed before tooling is written. Template entry/test stubs are only added when missing; existing application source, tests, README files, workspace membership, and unrelated manifest entries are preserved. Adopted projects without template metadata keep their existing build tooling. Dependencies are installed after tooling changes. Package and file updates already applied are retained if a later step is cancelled or fails; rerun update to retry.
+
+## Next steps
+
+- [Install the CLI](installation.md).
+- [Read the command reference](commands.md).
+- [Manage skills and conflicts](skills.md).

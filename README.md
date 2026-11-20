@@ -7,7 +7,7 @@ npx @jfdevelops/cli create my-project   # start a new app or library
 npx @jfdevelops/cli init                # adopt an existing project
 ```
 
-Every command that changes files previews the full plan, shows a diff for anything you edited, and writes nothing until you confirm.
+Interactive commands preview file changes and conflicts before confirmation. `create` and `init` also support `--yes` for unattended setup. Package installs and completed steps remain if a later review is cancelled.
 
 ## Commands
 
@@ -27,11 +27,12 @@ Every command that changes files previews the full plan, shows a diff for anythi
 
 ## Documentation
 
-- [Getting started](docs/getting-started.md): first run, what ends up in your project, and keeping it current.
-- [Command reference](docs/commands.md): every command, option, terminal requirement, and exit code.
-- [Skills, updates, and conflicts](docs/skills.md): skill sources, status, syncing, and how local edits are protected.
-- [Configuration](docs/configuration.md): `jfdevelops.json` fields and how the format evolves.
-- [Authoring skills](docs/authoring.md): publishing skills from a library with `create skills`.
+- [Overview](docs/framework/node/v0/overview.md) and [installation](docs/framework/node/v0/installation.md).
+- [Getting started](docs/framework/node/v0/getting-started.md): first run, what ends up in your project, and keeping it current.
+- [Command reference](docs/framework/node/v0/commands.md): every command, option, terminal requirement, and exit code.
+- [Skills, updates, and conflicts](docs/framework/node/v0/skills.md): skill sources, status, syncing, and how local edits are protected.
+- [Configuration](docs/framework/node/v0/configuration.md): `jfdevelops.json` fields and how the format evolves.
+- [Authoring skills](docs/framework/node/v0/authoring.md): publishing skills from a library with `create skills`.
 
 See [the project roadmap](ROADMAP.md) for scope, milestones, and open decisions.
 

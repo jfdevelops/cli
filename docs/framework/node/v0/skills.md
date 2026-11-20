@@ -1,6 +1,26 @@
-# Skills, updates, and conflicts
+---
+title: Skills, updates, and conflicts
+description: Discover skills, update their sources, and resolve local edits.
+order: 50
+---
+
+Skills bring dependency-specific instructions into your repository. Use status and
+sync commands to keep those instructions aligned with installed packages while
+reviewing local edits.
+
+In this guide you will:
+
+- Discover skills from installed dependencies.
+- Check and update their repository copies.
+- Resolve local edits and compare with upstream.
 
 ## Where skills come from
+
+In this guide you will:
+
+- Find skills from installed dependencies.
+- Check and synchronize skill copies.
+- Resolve conflicts without losing local edits.
 
 Skills come from packages installed in your project. A package publishes skills by listing them in the `jfdevelops.skills` field of its `package.json` (see [authoring skills](authoring.md)). The CLI reads that metadata and each `SKILL.md` from the installed version, so instructions always match the API you have installed. It never runs anything from those packages to discover skills.
 
@@ -71,3 +91,9 @@ The command requires Git and network access. It clones a temporary snapshot, rep
 Use `jfdevelops skills outdated --check` in CI: it exits with code 1 for differences or a failed comparison and code 0 otherwise. Without `--check`, differences are informational; failures still exit with code 1. With no installed skills, it reports that fact without accessing the network.
 
 `jfdevelops skills` and `jfdevelops skills sync` continue to compare against installed package versions. Sync does not download or apply upstream `main`.
+
+## Next steps
+
+- [Install the CLI](installation.md).
+- [Read the command reference](commands.md).
+- [Manage skills and conflicts](skills.md).
