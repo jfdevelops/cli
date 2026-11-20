@@ -10,6 +10,11 @@ function getIntegrationName(packageName: string) {
     return packageName;
   }
 
+  if (packageName === '@jfdevelops/docs') {
+
+    return 'docs';
+  }
+
   if (packageName.startsWith('@tanstack/')) {
 
     return packageName;

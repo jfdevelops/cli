@@ -3,6 +3,7 @@ export type AddonDefinition = { name: string; package: string; isDevelopment: bo
 // Integrations offered for installation. Individual TanStack and jfdevelops libraries are also accepted by package name.
 export const knownAddons: AddonDefinition[] = [
   { name: 'convex', package: 'convex', isDevelopment: false, description: 'Convex backend' },
+  { name: 'docs', package: '@jfdevelops/docs', isDevelopment: true, description: 'Versioned docs, navigation, and API reference' },
   { name: 'portless', package: 'portless', isDevelopment: true, description: 'Named local development URLs' },
 ];
 
@@ -10,7 +11,7 @@ const reservedPackages = new Set(['@jfdevelops/cli', '@jfdevelops/skills']);
 
 /** Resolves a supported addon by name; addon names match the integration names reported by detection. */
 export function resolveAddon(name: string): AddonDefinition | undefined {
-  const known = knownAddons.find((addon) => addon.name === name);
+  const known = knownAddons.find((addon) => addon.name === name || addon.package === name);
 
   if (known) {
 
