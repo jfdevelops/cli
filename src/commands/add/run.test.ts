@@ -301,6 +301,24 @@ describe('add addon', () => {
     expect(managedFiles).toContainEqual(expect.objectContaining({ path: 'package.json', owner: project }));
   });
 
+  it('finishes the setup of a docs addon that init adopted without options', async () => {
+    const projectRoot = await createInitializedProject(createAppFiles(), []);
+
+    await installDocs({ directory: projectRoot, packageManager: 'pnpm', packageName: '@jfdevelops/docs', isDevelopment: true });
+
+    const config = await readProjectConfig(projectRoot);
+
+    assert(config);
+    await writeProjectConfig(projectRoot, { ...config, addons: [{ name: 'docs', options: {} }] });
+
+    const { status, transcript } = await add(projectRoot, { kind: 'addon', name: 'docs', installPackage: () => Promise.reject(new Error('should not install')) });
+
+    expect(status).toBe('complete');
+    expect(transcript.some((line) => line.includes('already enabled'))).toBe(false);
+    expect((await readProjectConfig(projectRoot))?.addons).toEqual([{ name: 'docs', options: { package: '.', name: 'Shop' } }]);
+    expect(existsSync(join(projectRoot, '.github/workflows/docs.yml'))).toBe(true);
+  });
+
   it('installs docs at the workspace root even when a workspace package already has it', async () => {
     const files = createWorkspaceFiles();
     const projectRoot = await createInitializedProject(

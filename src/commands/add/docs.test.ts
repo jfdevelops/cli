@@ -10,6 +10,17 @@ describe('docs addon files', () => {
     expect(workflow).not.toContain('pnpm/action-setup');
   });
 
+  it('enables Corepack for Yarn and picks the install flags for its major', () => {
+    const modern = createDocsWorkflow('yarn', '.', 'yarn@4.5.0');
+    const classic = createDocsWorkflow('yarn', '.', 'yarn@1.22.22');
+
+    expect(modern).toContain('      - run: corepack enable\n      - uses: actions/setup-node@v7');
+    expect(modern).toContain('      - run: yarn install --immutable');
+    expect(classic).toContain('      - run: corepack enable');
+    expect(classic).toContain('      - run: yarn install --frozen-lockfile');
+    expect(createDocsWorkflow('yarn', '.')).toContain('      - run: yarn install --frozen-lockfile');
+  });
+
   it('sets up Bun without Node.js', () => {
     const workflow = createDocsWorkflow('bun', '.');
 

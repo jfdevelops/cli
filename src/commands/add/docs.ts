@@ -36,8 +36,15 @@ function titleFromPackageName(name: string) {
     .join(' ');
 }
 
+// Yarn 2 and later use --immutable; Yarn 1, and a project without a packageManager field, use --frozen-lockfile.
+function isModernYarn(packageManagerField: string | undefined) {
+  const major = Number(packageManagerField?.match(/^yarn@(\d+)\./)?.[1] ?? 1);
+
+  return major >= 2;
+}
+
 // Commands for CI; each installs exactly what the lockfile records.
-function describeCommands(packageManager: PackageManagerName) {
+function describeCommands(packageManager: PackageManagerName, packageManagerField: string | undefined) {
   switch (packageManager) {
     case 'npm':
 
@@ -47,7 +54,7 @@ function describeCommands(packageManager: PackageManagerName) {
       return { install: 'pnpm install --frozen-lockfile', run: 'pnpm run' };
     case 'yarn':
 
-      return { install: 'yarn install --immutable', run: 'yarn run' };
+      return { install: isModernYarn(packageManagerField) ? 'yarn install --immutable' : 'yarn install --frozen-lockfile', run: 'yarn run' };
     case 'bun':
 
       return { install: 'bun install --frozen-lockfile', run: 'bun run' };
@@ -62,6 +69,8 @@ function describeSetupSteps(packageManager: PackageManagerName) {
 
   return [
     ...(packageManager === 'pnpm' ? ['      - uses: pnpm/action-setup@v6'] : []),
+    // Runners ship Yarn 1; Corepack provides the version in packageManager before setup-node reads its cache.
+    ...(packageManager === 'yarn' ? ['      - run: corepack enable'] : []),
     '      - uses: actions/setup-node@v7',
     '        with:',
     '          node-version: 24',
@@ -76,9 +85,12 @@ function describeWatchedPaths(packageDirectory: string) {
   return ['docs/**', inPackage('src/**'), inPackage('package.json'), inPackage('CHANGELOG.md'), 'jfdevelops.json', docsWorkflowPath];
 }
 
-/** A workflow that generates and checks the docs, only when a change can affect them. */
-export function createDocsWorkflow(packageManager: PackageManagerName, packageDirectory: string) {
-  const { install, run } = describeCommands(packageManager);
+/**
+ * A workflow that generates and checks the docs, only when a change can affect them. packageManagerField
+ * is the root package.json packageManager value, which selects the Yarn install flags.
+ */
+export function createDocsWorkflow(packageManager: PackageManagerName, packageDirectory: string, packageManagerField?: string) {
+  const { install, run } = describeCommands(packageManager, packageManagerField);
   const paths = describeWatchedPaths(packageDirectory).map((path) => `      - '${path}'`);
 
   return [
@@ -147,6 +159,12 @@ export function createIgnoreEdit(): FileEdit {
   };
 }
 
+// A docs addon recorded without its package, by init adoption or a setup that failed, still needs setting up.
+export function isDocsSetUp(options: Record<string, unknown>) {
+
+  return typeof options['package'] === 'string';
+}
+
 // Starts docs/README.md only when the project has none.
 export function createReadmeEdit(): FileEdit {
 
@@ -175,7 +193,9 @@ export async function createDocsSetup(additions: ProjectAdditions, prompter: Pro
   }
 
   const name = await prompter.text({ message: 'Library name shown in the docs', defaultValue: titleFromPackageName(manifest.name) });
-  const files: DesiredFile[] = [{ path: docsWorkflowPath, owner: docsOwner, content: createDocsWorkflow(config.project.packageManager, packageDirectory) }];
+  const rootManifest = await readPackageManifest(project.root);
+  const workflow = createDocsWorkflow(config.project.packageManager, packageDirectory, rootManifest?.packageManager);
+  const files: DesiredFile[] = [{ path: docsWorkflowPath, owner: docsOwner, content: workflow }];
 
   return {
     options: { package: packageDirectory, name },
