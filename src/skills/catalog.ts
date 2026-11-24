@@ -3,6 +3,7 @@ import { compareStrings } from '../compare.js';
 import { readPackageManifest } from '../detect/manifest.js';
 import { discoverPackageSkills, type DiscoveredSkill } from './discover.js';
 import { findInstalledPackage } from './installed.js';
+import { sharedSkillsPackageName } from './shared.js';
 
 export type CatalogSkill = Omit<DiscoveredSkill, 'path'> & {
   source: { package: string; version: string; path: string };
@@ -19,7 +20,7 @@ function readDependencyNames(manifest: NonNullable<Awaited<ReturnType<typeof rea
   return Object.keys({ ...manifest.dependencies, ...manifest.devDependencies, ...manifest.optionalDependencies }).sort();
 }
 
-function findConflicts(skills: CatalogSkill[]) {
+export function findSkillConflicts(skills: CatalogSkill[]) {
   const sourcesByName = new Map<string, SkillConflict['sources']>();
 
   for (const { name, source } of skills) {
@@ -83,6 +84,11 @@ export async function buildSkillCatalog(projectRoot: string, scopes: string[], c
     }
 
     for (const dependency of readDependencyNames(manifest)) {
+      // Shared conventions are loaded from jfdevelops/skills main, not from an installed package copy.
+      if (dependency === sharedSkillsPackageName) {
+        continue;
+      }
+
       const packageDirectory = findInstalledPackage(scopeDirectory, dependency, projectRoot);
 
       if (!packageDirectory) {
@@ -102,7 +108,7 @@ export async function buildSkillCatalog(projectRoot: string, scopes: string[], c
     (left, right) => compareStrings(left.name, right.name) || compareStrings(left.source.package, right.source.package),
   );
 
-  return { skills, conflicts: findConflicts(skills), problems, missingDependencies };
+  return { skills, conflicts: findSkillConflicts(skills), problems, missingDependencies };
 }
 
 export type SkillCatalog = Awaited<ReturnType<typeof buildSkillCatalog>>;

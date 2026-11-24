@@ -6,6 +6,7 @@ import { readProjectConfig } from '../../config/read.js';
 import { hashContent } from '../../plan/hash.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question, type Respond } from '../../testing/prompter.js';
+import { openTestSharedSkills } from '../../testing/shared-skills.js';
 import { createSkillDocument, createSkillPackage } from '../../testing/skill-package.js';
 import { runInit } from '../init/run.js';
 import { runSkillsStatus } from './status.js';
@@ -14,6 +15,7 @@ import { runSkillsSync } from './sync.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
 const formsPackage = 'node_modules/@acme/forms';
+const openSharedSkills = openTestSharedSkills();
 
 // Accepts defaults and confirms, unless a handler overrides the question.
 function answer(overrides: (question: Question) => ReturnType<Respond> | undefined = () => undefined): Respond {
@@ -57,7 +59,13 @@ async function createInitializedProject(extra: FixtureFiles = {}) {
 
   fixtures.push(fixture);
 
-  const status = await runInit({ directory: fixture.root, version: '0.1.0', prompter, installDependency: async () => undefined });
+  const status = await runInit({
+    directory: fixture.root,
+    version: '0.1.0',
+    prompter,
+    installDependency: async () => undefined,
+    openSharedSkills,
+  });
 
   expect(status).toBe('complete');
 
@@ -80,7 +88,7 @@ async function readText(projectRoot: string, path: string) {
 
 async function getStatus(projectRoot: string) {
   const { prompter, transcript } = createScriptedPrompter(answer());
-  const status = await runSkillsStatus({ directory: projectRoot, prompter });
+  const status = await runSkillsStatus({ directory: projectRoot, prompter, openSharedSkills });
 
   return { status, transcript, table: transcript.find((line) => line.startsWith('note [Enabled skills]')) ?? '' };
 }
@@ -126,6 +134,32 @@ describe('runSkillsStatus', () => {
     await expect(runSkillsStatus({ directory: fixture.root, prompter })).resolves.toBe('failed');
     expect(transcript).toContain('error: No jfdevelops.json found. Run jfdevelops init first.');
   });
+
+  it('does not list required shared skills as addable', async () => {
+    const fixture = await createFixture({
+      'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', dependencies: { next: '15.0.0', '@acme/forms': '1.0.0' } },
+      'jfdevelops.json': {
+        schemaVersion: 1,
+        generator: { package: '@jfdevelops/cli', version: '0.1.0' },
+        project: { name: 'shop', packageManager: 'pnpm' },
+        targets: [{ path: '.', kind: 'app', template: 'next-app' }],
+        addons: [],
+        agents: ['cursor'],
+        formatter: 'prettier',
+        skills: [],
+        managedFiles: [],
+      },
+      ...createSkillPackage(formsPackage, { name: '@acme/forms', version: '1.0.0', skills: ['build-forms'] }),
+    });
+
+    fixtures.push(fixture);
+
+    const { status, transcript } = await getStatus(fixture.root);
+    const available = transcript.find((line) => line.startsWith('info: Also available from installed packages:'));
+
+    expect(status).not.toBe('failed');
+    expect(available).toBe('info: Also available from installed packages: build-forms. Run jfdevelops add skill <name> to enable one.');
+  });
 });
 
 describe('runSkillsSync', () => {
@@ -136,7 +170,7 @@ describe('runSkillsSync', () => {
 
     const { prompter } = createScriptedPrompter(answer());
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('complete');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter })).resolves.toBe('complete');
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
     expect(await readText(projectRoot, '.claude/skills/build-forms/SKILL.md')).toContain('description: Use build-forms v2');
     expect(await readText(projectRoot, 'AGENTS.md')).toContain('): Use build-forms v2');
@@ -145,7 +179,7 @@ describe('runSkillsSync', () => {
 
     const repeat = createScriptedPrompter(answer());
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter: repeat.prompter })).resolves.toBe('unchanged');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter: repeat.prompter })).resolves.toBe('unchanged');
   });
 
   it('replaces copies from before agents were selectable with stubs and removes unneeded ones', async () => {
@@ -170,7 +204,7 @@ describe('runSkillsSync', () => {
     const managedFiles = [...config.managedFiles.filter((file) => !legacyPaths.includes(file.path)), ...legacyRecords];
 
     await writeFile(join(projectRoot, 'jfdevelops.json'), JSON.stringify({ ...config, managedFiles }));
-    await expect(runSkillsSync({ directory: projectRoot, prompter: createScriptedPrompter(answer()).prompter })).resolves.toBe('complete');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter: createScriptedPrompter(answer()).prompter })).resolves.toBe('complete');
 
     expect(await readText(projectRoot, '.claude/skills/build-forms/SKILL.md')).toContain('Read and follow `.agents/skills/build-forms/SKILL.md`');
     expect(existsSync(join(projectRoot, '.cursor/skills/build-forms'))).toBe(false);
@@ -186,7 +220,7 @@ describe('runSkillsSync', () => {
 
     const { prompter, transcript } = createScriptedPrompter(answer());
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('complete');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter })).resolves.toBe('complete');
     expect(transcript).toContain('? How should .claude/skills/build-forms/SKILL.md be handled?');
     expect(await readText(projectRoot, '.claude/skills/build-forms/SKILL.md')).toBe('my edits\n');
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
@@ -200,7 +234,7 @@ describe('runSkillsSync', () => {
 
     const { prompter, transcript } = createScriptedPrompter(answer());
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('complete');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter })).resolves.toBe('complete');
     expect(transcript).toContain('? These skills come from packages that are no longer installed. Which should be removed?');
     expect(existsSync(join(projectRoot, '.agents/skills/build-forms'))).toBe(false);
     expect(await readText(projectRoot, 'AGENTS.md')).not.toContain('build-forms');
@@ -214,14 +248,14 @@ describe('runSkillsSync', () => {
 
     const { prompter } = createScriptedPrompter(answer((question) => (question.kind === 'multiselect' ? [] : undefined)));
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('complete');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter })).resolves.toBe('complete');
     expect(existsSync(join(projectRoot, '.agents/skills/build-forms/SKILL.md'))).toBe(true);
     expect(await readText(projectRoot, 'AGENTS.md')).toContain('): @acme/forms is not installed');
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toContain('build-forms');
 
     const repeat = createScriptedPrompter(answer((question) => (question.kind === 'multiselect' ? [] : undefined)));
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter: repeat.prompter })).resolves.toBe('unchanged');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter: repeat.prompter })).resolves.toBe('unchanged');
   });
 
   it('asks which version to use when several are installed', async () => {
@@ -236,7 +270,7 @@ describe('runSkillsSync', () => {
     );
 
     fixtures.push(fixture);
-    await runInit({ directory: fixture.root, version: '0.1.0', prompter: init.prompter, installDependency: async () => undefined });
+    await runInit({ directory: fixture.root, version: '0.1.0', prompter: init.prompter, installDependency: async () => undefined, openSharedSkills });
     await mkdir(join(fixture.root, 'packages/ui', formsPackage, 'skills/build-forms'), { recursive: true });
     await upgradeForms(join(fixture.root, 'packages/ui'));
 
@@ -244,7 +278,7 @@ describe('runSkillsSync', () => {
 
     const { prompter, transcript } = createScriptedPrompter(answer((question) => (question.kind === 'select' && question.message.startsWith('build-forms is installed') ? '2.0.0' : undefined)));
 
-    await expect(runSkillsSync({ directory: fixture.root, prompter })).resolves.toBe('complete');
+    await expect(runSkillsSync({ directory: fixture.root, openSharedSkills, prompter })).resolves.toBe('complete');
     expect(transcript).toContain('? build-forms is installed in more than one version. Which should be used?');
     expect(await readText(fixture.root, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
     expect((await readProjectConfig(fixture.root))?.skills.find((skill) => skill.name === 'build-forms')?.source.version).toBe('2.0.0');
@@ -258,7 +292,7 @@ describe('runSkillsSync', () => {
 
     const { prompter, transcript } = createScriptedPrompter(answer((question) => (question.kind === 'confirm' ? false : undefined)));
 
-    await expect(runSkillsSync({ directory: projectRoot, prompter })).resolves.toBe('cancelled');
+    await expect(runSkillsSync({ directory: projectRoot, openSharedSkills, prompter })).resolves.toBe('cancelled');
     expect(transcript.at(-1)).toBe('cancel: Sync cancelled. No skill copies were changed.');
     expect(await readText(projectRoot, 'jfdevelops.json')).toBe(before);
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).not.toContain('v2');
@@ -273,6 +307,7 @@ describe('runSkillsUpdate', () => {
 
     await expect(runSkillsUpdate({
       directory: projectRoot,
+      openSharedSkills,
       skillNames: ['build-forms'],
       prompter,
       installPackage: async () => {
@@ -291,7 +326,7 @@ describe('runSkillsUpdate', () => {
     const projectRoot = await createInitializedProject();
     const before = await readText(projectRoot, '.agents/skills/build-forms/SKILL.md');
 
-    await expect(runSkillsUpdate({ directory: projectRoot, prompter: createScriptedPrompter(answer()).prompter, installPackage: async () => { throw new Error('offline'); } })).resolves.toBe('failed');
+    await expect(runSkillsUpdate({ directory: projectRoot, openSharedSkills, prompter: createScriptedPrompter(answer()).prompter, installPackage: async () => { throw new Error('offline'); } })).resolves.toBe('failed');
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toBe(before);
   });
 
@@ -302,7 +337,7 @@ describe('runSkillsUpdate', () => {
     await upgradeForms(projectRoot);
     const installs: string[] = [];
 
-    await expect(runSkillsUpdate({ directory: projectRoot, skillNames: ['build-forms'], prompter: createScriptedPrompter(answer()).prompter, installPackage: async (options) => void installs.push(options.packageName) })).resolves.toBe('complete');
+    await expect(runSkillsUpdate({ directory: projectRoot, openSharedSkills, skillNames: ['build-forms'], prompter: createScriptedPrompter(answer()).prompter, installPackage: async (options) => void installs.push(options.packageName) })).resolves.toBe('complete');
     expect(installs).toEqual([]);
     expect(await readText(projectRoot, '.agents/skills/build-forms/SKILL.md')).toContain('Use build-forms v2');
   });
@@ -314,6 +349,7 @@ describe('runSkillsUpdate', () => {
     const { prompter } = createScriptedPrompter(answer());
     const status = await runSkillsUpdate({
       directory: projectRoot,
+      openSharedSkills,
       skillNames: ['build-forms'],
       prompter,
       installPackage: async (options) => {
@@ -330,16 +366,40 @@ describe('runSkillsUpdate', () => {
     expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'build-forms')?.source.version).toBe('2.0.0');
   });
 
-  it('updates all source packages by default and rejects unknown names before installing', async () => {
+  it('updates dependency skill packages by default, refreshes shared skills from main, and rejects unknown names before installing', async () => {
     const projectRoot = await createInitializedProject();
     const installs: string[] = [];
     const installPackage = async (options: { packageName: string }) => void installs.push(options.packageName);
+    const { prompter, transcript } = createScriptedPrompter(answer());
 
-    await expect(runSkillsUpdate({ directory: projectRoot, prompter: createScriptedPrompter(answer()).prompter, installPackage })).resolves.toBe('unchanged');
-    expect(installs).toEqual(['@acme/forms@latest', '@jfdevelops/skills@latest']);
+    await expect(runSkillsUpdate({ directory: projectRoot, openSharedSkills, prompter, installPackage })).resolves.toBe('unchanged');
+    expect(installs).toEqual(['@acme/forms@latest']);
+    expect(transcript.some((line) => line.includes('Shared convention skills refresh from @jfdevelops/skills main'))).toBe(true);
     installs.length = 0;
-    await expect(runSkillsUpdate({ directory: projectRoot, skillNames: ['typo'], prompter: createScriptedPrompter(answer()).prompter, installPackage })).resolves.toBe('failed');
+    await expect(runSkillsUpdate({ directory: projectRoot, openSharedSkills, skillNames: ['typo'], prompter: createScriptedPrompter(answer()).prompter, installPackage })).resolves.toBe('failed');
     expect(installs).toEqual([]);
+  });
+
+  it('installs newly required shared skills on a default update without naming them', async () => {
+    const projectRoot = await createInitializedProject();
+    const config = await readProjectConfig(projectRoot);
+
+    await writeFile(join(projectRoot, 'jfdevelops.json'), `${JSON.stringify({
+      ...config,
+      skills: (config?.skills ?? []).filter((skill) => skill.name !== 'jf-docs'),
+      managedFiles: (config?.managedFiles ?? []).filter((file) => file.owner.type !== 'skill' || file.owner.name !== 'jf-docs'),
+    }, null, 2)}\n`);
+    await rm(join(projectRoot, '.agents/skills/jf-docs'), { recursive: true, force: true });
+    await rm(join(projectRoot, '.claude/skills/jf-docs'), { recursive: true, force: true });
+
+    await expect(runSkillsUpdate({
+      directory: projectRoot,
+      openSharedSkills,
+      prompter: createScriptedPrompter(answer()).prompter,
+      installPackage: async () => undefined,
+    })).resolves.toBe('complete');
+    expect(existsSync(join(projectRoot, '.agents/skills/jf-docs/SKILL.md'))).toBe(true);
+    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toContain('jf-docs');
   });
 
   it('does not install packages when the update is declined', async () => {
@@ -347,7 +407,7 @@ describe('runSkillsUpdate', () => {
     const installs: string[] = [];
     const { prompter } = createScriptedPrompter(answer((question) => question.kind === 'confirm' ? false : undefined));
 
-    await expect(runSkillsUpdate({ directory: projectRoot, prompter, installPackage: async (options) => void installs.push(options.packageName) })).resolves.toBe('cancelled');
+    await expect(runSkillsUpdate({ directory: projectRoot, openSharedSkills, prompter, installPackage: async (options) => void installs.push(options.packageName) })).resolves.toBe('cancelled');
     expect(installs).toEqual([]);
   });
 
@@ -359,6 +419,7 @@ describe('runSkillsUpdate', () => {
 
     await expect(runSkillsUpdate({
       directory: projectRoot,
+      openSharedSkills,
       skillNames: ['build-forms'],
       prompter: createScriptedPrompter(answer()).prompter,
       installPackage: async () => {

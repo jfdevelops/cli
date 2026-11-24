@@ -7,11 +7,13 @@ import { writeProjectConfig } from '../../config/write.js';
 import { hashContent } from '../../plan/hash.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter } from '../../testing/prompter.js';
+import { openTestSharedSkills } from '../../testing/shared-skills.js';
 import { createWorkspaceFiles } from '../create/workspace.js';
 import { createProjectUpdateFiles } from './files.js';
 import { runUpdate } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
+const openSharedSkills = openTestSharedSkills();
 
 function createPrompter(shouldConfirm = true) {
 
@@ -60,8 +62,13 @@ describe('runUpdate', () => {
   it('upgrades the CLI before handing the project to the installed release', async () => {
     const { root } = await createProject({ 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' });
     const actions: string[] = [];
+    let sharedSkillsOpened = 0;
 
     await expect(runUpdate({
+      openSharedSkills: async () => {
+        sharedSkillsOpened += 1;
+        throw new Error('CLI upgrade must not clone shared skills');
+      },
       directory: root,
       version: '0.2.0',
       prompter: createPrompter().prompter,
@@ -75,6 +82,7 @@ describe('runUpdate', () => {
       },
     })).resolves.toBe('complete');
     expect(actions).toEqual(['install', 'refresh']);
+    expect(sharedSkillsOpened).toBe(0);
   });
 
   it('runs the installed CLI executable with the project refresh flag', async () => {
@@ -85,7 +93,7 @@ writeFileSync('handoff.json', JSON.stringify(process.argv.slice(2)));
 `,
     });
 
-    await expect(runUpdate({ directory: root, version: '0.2.0', prompter: createPrompter().prompter, installPackage: async () => undefined })).resolves.toBe('complete');
+    await expect(runUpdate({ openSharedSkills, directory: root, version: '0.2.0', prompter: createPrompter().prompter, installPackage: async () => undefined })).resolves.toBe('complete');
     expect(JSON.parse(await readFile(join(root, 'handoff.json'), 'utf8'))).toEqual(['update', root, '--refresh-project']);
   });
 
@@ -95,14 +103,14 @@ writeFileSync('handoff.json', JSON.stringify(process.argv.slice(2)));
       'node_modules/@jfdevelops/cli/dist/cli.js': 'process.exit(2);',
     });
 
-    await expect(runUpdate({ directory: root, version: '0.2.0', prompter: createPrompter().prompter, installPackage: async () => undefined })).resolves.toBe('cancelled');
+    await expect(runUpdate({ openSharedSkills, directory: root, version: '0.2.0', prompter: createPrompter().prompter, installPackage: async () => undefined })).resolves.toBe('cancelled');
   });
 
   it('leaves the project unchanged when upgrading is declined', async () => {
     const { root } = await createProject();
     const actions: string[] = [];
 
-    await expect(runUpdate({ directory: root, version: '0.2.0', prompter: createPrompter(false).prompter, installPackage: async () => void actions.push('install'), runInstalledUpdate: async () => void actions.push('refresh') })).resolves.toBe('cancelled');
+    await expect(runUpdate({ openSharedSkills, directory: root, version: '0.2.0', prompter: createPrompter(false).prompter, installPackage: async () => void actions.push('install'), runInstalledUpdate: async () => void actions.push('refresh') })).resolves.toBe('cancelled');
     expect(actions).toEqual([]);
   });
 
@@ -110,7 +118,7 @@ writeFileSync('handoff.json', JSON.stringify(process.argv.slice(2)));
     const { root } = await createProject();
     const actions: string[] = [];
 
-    await expect(runUpdate({ directory: root, version: '0.2.0', prompter: createPrompter().prompter, installPackage: async () => { throw new Error('offline'); }, runInstalledUpdate: async () => void actions.push('refresh') })).resolves.toBe('failed');
+    await expect(runUpdate({ openSharedSkills, directory: root, version: '0.2.0', prompter: createPrompter().prompter, installPackage: async () => { throw new Error('offline'); }, runInstalledUpdate: async () => void actions.push('refresh') })).resolves.toBe('failed');
     expect(actions).toEqual([]);
   });
 
@@ -122,7 +130,16 @@ writeFileSync('handoff.json', JSON.stringify(process.argv.slice(2)));
 
     await writeProjectConfig(root, { ...config, formatter: 'prettier', targets: [{ path: 'apps/web', kind: 'app', template: 'node-app', options: {} }], managedFiles: oldFiles.map((file) => ({ path: file.path, owner: file.owner, sha256: hashContent(file.content) })) });
     const installs: string[] = [];
-    const status = await runUpdate({ directory: root, version: '0.2.0', isRefreshingProject: true, prompter: createPrompter().prompter, installPackage: async () => undefined, installDependency: async () => undefined, installProject: async (directory) => void installs.push(directory) });
+    const status = await runUpdate({
+      openSharedSkills,
+      directory: root,
+      version: '0.2.0',
+      isRefreshingProject: true,
+      prompter: createPrompter().prompter,
+      installPackage: async () => undefined,
+      installDependency: async () => undefined,
+      installProject: async (directory) => void installs.push(directory),
+    });
 
     expect(status).toBe('complete');
     expect((await readProjectConfig(root))?.generator.version).toBe('0.2.0');

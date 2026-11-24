@@ -131,7 +131,7 @@ export async function selectSkills(catalog: SkillCatalog, enabledSkills: Enabled
 
   for (const conflict of catalog.conflicts) {
     if (required.some((skill) => skill.name === conflict.name)) {
-      prompter.warn(`${conflict.name} is required from @jfdevelops/skills; other providers were ignored.`);
+      prompter.warn(`${conflict.name} is required from the shared skills repository; other providers were ignored.`);
       continue;
     }
 

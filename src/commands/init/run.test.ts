@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { readProjectConfig } from '../../config/read.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question, type Respond } from '../../testing/prompter.js';
+import { openTestSharedSkills } from '../../testing/shared-skills.js';
 import { createSkillPackage } from '../../testing/skill-package.js';
 import { runInit, type InitOptions } from './run.js';
+
+const openSharedSkills = openTestSharedSkills();
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
 
@@ -78,9 +81,9 @@ async function installTestDependency({ directory, packageName, version }: Parame
   await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-function runTestInit(options: Omit<InitOptions, 'installDependency'>) {
+function runTestInit(options: Omit<InitOptions, 'installDependency' | 'openSharedSkills'>) {
 
-  return runInit({ ...options, installDependency: installTestDependency });
+  return runInit({ ...options, installDependency: installTestDependency, openSharedSkills });
 }
 
 afterEach(async () => {
@@ -109,6 +112,7 @@ describe('runInit', () => {
       skills: [
         { name: 'build-forms', required: false },
         { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-docs', required: true },
         { name: 'jf-git', required: true },
         { name: 'jf-naming-conventions', required: true },
         { name: 'validate-forms', required: false },
@@ -146,16 +150,18 @@ describe('runInit', () => {
       agents: ['claude-code'],
       skills: [
         { name: 'build-forms', required: false, source: { package: '@acme/forms', version: '1.0.0', path: './skills/build-forms' } },
-        { name: 'jf-coding-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
-        { name: 'jf-git', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
-        { name: 'jf-naming-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
+        { name: 'jf-coding-conventions', required: true, source: { package: '@jfdevelops/skills', version: 'test-revision' } },
+        { name: 'jf-docs', required: true, source: { package: '@jfdevelops/skills', version: 'test-revision' } },
+        { name: 'jf-git', required: true, source: { package: '@jfdevelops/skills', version: 'test-revision' } },
+        { name: 'jf-naming-conventions', required: true, source: { package: '@jfdevelops/skills', version: 'test-revision' } },
       ],
     });
     expect(config?.managedFiles.filter((file) => file.owner.type === 'skill' && file.owner.name === 'build-forms').map((file) => file.path)).toEqual([
       '.agents/skills/build-forms/SKILL.md',
       '.claude/skills/build-forms/SKILL.md',
     ]);
-    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0', '@jfdevelops/skills': '0.1.0' } });
+    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0' } });
+    expect(JSON.parse(await readText(projectRoot, 'package.json')).devDependencies?.['@jfdevelops/skills']).toBeUndefined();
     expect(transcript).toContain('outro: Project initialized.');
     const preview = transcript.find((line) => line.startsWith('note [Planned changes]')) ?? '';
 
@@ -169,24 +175,41 @@ describe('runInit', () => {
     expect(repeat.transcript).not.toContain('? Apply these changes?');
   });
 
-  it('adds the shared skills dependency even when the CLI is already declared', async () => {
+  it('does not install an @jfdevelops/skills npm dependency when the CLI is already declared', async () => {
     const projectRoot = await createProject(createProjectFiles({
       'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { '@jfdevelops/cli': '0.1.0' } },
     }));
     const installs: string[] = [];
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer([])).prompter, installDependency: async (options) => void installs.push(options.packageName) })).resolves.toBe('complete');
-    expect(installs).toEqual(['@jfdevelops/skills']);
+    await expect(runInit({
+      directory: projectRoot,
+      version: '0.1.0',
+      prompter: createScriptedPrompter(answer([])).prompter,
+      installDependency: async (options) => void installs.push(options.packageName),
+      openSharedSkills,
+    })).resolves.toBe('complete');
+    expect(installs).toEqual([]);
+    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
+      'jf-coding-conventions',
+      'jf-docs',
+      'jf-git',
+      'jf-naming-conventions',
+    ]);
   });
 
-  it('uses the project-installed shared skills rather than the CLI bundled version', async () => {
+  it('installs every skill from the shared main checkout, ignoring an older installed package copy', async () => {
     const projectRoot = await createProject(createProjectFiles({
       'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { '@jfdevelops/skills': '2.0.0' } },
       ...createSkillPackage('node_modules/@jfdevelops/skills', { name: '@jfdevelops/skills', version: '2.0.0', skills: ['jf-git'] }),
     }));
 
     await expect(runTestInit({ directory: projectRoot, version: '0.1.0', prompter: createScriptedPrompter(answer([])).prompter })).resolves.toBe('complete');
-    expect((await readProjectConfig(projectRoot))?.skills).toEqual([expect.objectContaining({ name: 'jf-git', source: expect.objectContaining({ version: '2.0.0' }) })]);
+    expect((await readProjectConfig(projectRoot))?.skills).toEqual([
+      expect.objectContaining({ name: 'jf-coding-conventions', source: expect.objectContaining({ version: 'test-revision' }) }),
+      expect.objectContaining({ name: 'jf-docs', source: expect.objectContaining({ version: 'test-revision' }) }),
+      expect.objectContaining({ name: 'jf-git', source: expect.objectContaining({ version: 'test-revision' }) }),
+      expect.objectContaining({ name: 'jf-naming-conventions', source: expect.objectContaining({ version: 'test-revision' }) }),
+    ]);
   });
 
   it('removes deselected skills and their instruction links on a later run', async () => {
@@ -201,6 +224,7 @@ describe('runInit', () => {
     expect(await readText(projectRoot, 'AGENTS.md')).not.toContain('build-forms');
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
       'jf-coding-conventions',
+      'jf-docs',
       'jf-git',
       'jf-naming-conventions',
       'validate-forms',
@@ -270,6 +294,7 @@ describe('runInit', () => {
       targets: [{ path: '.', kind: 'library' }],
       skills: [
         { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-docs', required: true },
         { name: 'jf-git', required: true },
         { name: 'jf-naming-conventions', required: true },
       ],
@@ -332,11 +357,10 @@ describe('runInit', () => {
     const installs: unknown[] = [];
     const { prompter, transcript } = createScriptedPrompter(answer([]));
 
-    await runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency: async (options) => void installs.push(options) });
+    await runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency: async (options) => void installs.push(options), openSharedSkills });
 
     expect(installs).toEqual([
       expect.objectContaining({ packageName: '@jfdevelops/cli', packageManager: 'pnpm', isWorkspaceRoot: true }),
-      expect.objectContaining({ packageName: '@jfdevelops/skills', packageManager: 'pnpm', isWorkspaceRoot: true }),
     ]);
     expect(transcript.find((line) => line.startsWith('note [Planned changes]'))).toContain(
       'Install development dependency: pnpm add --save-dev --save-exact --workspace-root @jfdevelops/cli@0.1.0',
@@ -350,7 +374,7 @@ describe('runInit', () => {
       throw new Error('registry unavailable');
     };
 
-    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency })).resolves.toBe('incomplete');
+    await expect(runInit({ directory: projectRoot, version: '0.1.0', prompter, installDependency, openSharedSkills })).resolves.toBe('incomplete');
 
     expect(transcript).toContain('error: Could not install @jfdevelops/cli: registry unavailable');
     expect(transcript).toContain('outro: Init finished with errors. Run it again to retry the failed files.');
@@ -381,6 +405,7 @@ describe('runInit', () => {
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
       'build-forms',
       'jf-coding-conventions',
+      'jf-docs',
       'jf-git',
       'jf-naming-conventions',
     ]);

@@ -3,8 +3,9 @@ import type { ManagedFile, ProjectConfig } from '../../config/schema.js';
 import { writeProjectConfig } from '../../config/write.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
+import { openSharedSkillsFromMain, type OpenSharedSkills } from '../../skills/shared.js';
 import { confirmAndApply } from '../confirm-and-apply.js';
-import { inspectSkills, type SkillsInspection } from './inspect.js';
+import { inspectSkills, type InspectSkillsOptions, type SkillsInspection } from './inspect.js';
 
 export type SkillsSyncStatus = 'complete' | 'incomplete' | 'unchanged' | 'cancelled' | 'failed';
 
@@ -66,8 +67,17 @@ async function chooseVersions(inspection: SkillsInspection, prompter: Prompter) 
   return selectedVersions;
 }
 
-async function syncSkills(directory: string, prompter: Prompter, skillNames?: string[]): Promise<SkillsSyncStatus> {
-  const initial = await inspectSkills(directory, skillNames ? { skillNames } : {});
+async function syncSkills(
+  directory: string,
+  prompter: Prompter,
+  skillNames?: string[],
+  openSharedSkills?: InspectSkillsOptions['openSharedSkills'],
+): Promise<SkillsSyncStatus> {
+  const inspectOptions = {
+    ...(skillNames ? { skillNames } : { includeRequiredShared: true }),
+    ...(openSharedSkills ? { openSharedSkills } : {}),
+  };
+  const initial = await inspectSkills(directory, inspectOptions);
 
   if (skillNames) {
     const unknown = skillNames.filter((name) => !initial.config.skills.some((skill) => skill.name === name));
@@ -86,9 +96,12 @@ async function syncSkills(directory: string, prompter: Prompter, skillNames?: st
   const removedSkills = await chooseRemovedSkills(initial.statuses.filter((status) => status.state === 'missing-source'), prompter);
   const selectedVersions = await chooseVersions(initial, prompter);
   const hasChoices = removedSkills.length > 0 || Object.keys(selectedVersions).length > 0;
-  const { project, config, sources, plan } = hasChoices ? await inspectSkills(directory, { removedSkills, selectedVersions, ...(skillNames ? { skillNames } : {}) }) : initial;
+  const { project, config, sources, plan } = hasChoices
+    ? await inspectSkills(directory, { removedSkills, selectedVersions, ...inspectOptions })
+    : initial;
   const plannedConfig = parseProjectConfig(createSyncConfig(config, sources, removedSkills, plan.managedFiles));
-  const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(config);
+  // Compare with the on-disk config; `config` may already include newly required shared skills.
+  const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(project.config);
 
   if (!plan.hasChanges && !isConfigChanged) {
     prompter.outro('Skills are already in sync.');
@@ -114,14 +127,25 @@ async function syncSkills(directory: string, prompter: Prompter, skillNames?: st
 /**
  * Updates unchanged skill copies to the installed source versions, offers to remove skills whose
  * source package is gone, and asks before replacing or deleting locally edited copies. Nothing is
- * written before the final confirmation.
+ * written before the final confirmation. Shared convention skills are refreshed from jfdevelops/skills
+ * main; a full sync also installs any required skills that are not enabled yet.
  */
-export async function runSkillsSync({ directory, prompter, skillNames }: { directory: string; prompter: Prompter; skillNames?: string[] }): Promise<SkillsSyncStatus> {
+export async function runSkillsSync({
+  directory,
+  prompter,
+  skillNames,
+  openSharedSkills,
+}: {
+  directory: string;
+  prompter: Prompter;
+  skillNames?: string[];
+  openSharedSkills?: InspectSkillsOptions['openSharedSkills'];
+}): Promise<SkillsSyncStatus> {
   prompter.intro('jfdevelops skills sync');
 
   try {
 
-    return await syncSkills(directory, prompter, skillNames);
+    return await syncSkills(directory, prompter, skillNames, openSharedSkills);
   } catch (error) {
     if (error instanceof PromptCancelledError) {
       prompter.cancel('Sync cancelled. No skill copies were changed.');

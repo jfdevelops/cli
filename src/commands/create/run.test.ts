@@ -8,6 +8,7 @@ import { detectWorkspace } from '../../detect/workspace.js';
 import { hashContent } from '../../plan/hash.js';
 import { createFixture } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question } from '../../testing/prompter.js';
+import { openTestSharedSkills } from '../../testing/shared-skills.js';
 import { runCreate, type CreateOptions } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
@@ -96,6 +97,7 @@ const noopLifecycle = {
   initializeGit: async () => undefined,
   checkGitIdentity: async () => true,
   readPackageManagerVersion: async () => '10.28.1',
+  openSharedSkills: openTestSharedSkills(),
 };
 
 afterEach(async () => {
@@ -117,11 +119,7 @@ describe('runCreate', () => {
         prompter,
         answers: { kind: 'app' },
         nonInteractive: { conflicts: 'keep' },
-        installDependency: installTestDependency,
-        formatProject: async () => undefined,
-        verifyProject: async () => undefined,
-        initializeGit: async () => undefined,
-        checkGitIdentity: async () => true,
+        ...noopLifecycle,
       }),
     ).resolves.toBe('complete');
 
@@ -173,6 +171,7 @@ describe('runCreate', () => {
       targets: [{ path: '.', kind: 'app', template: 'node-app' }],
       skills: [
         { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-docs', required: true },
         { name: 'jf-git', required: true },
         { name: 'jf-naming-conventions', required: true },
       ],

@@ -11,9 +11,6 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
-      '@jfdevelops/skills':
-        specifier: 0.1.0
-        version: 0.1.0
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -130,10 +127,6 @@ packages:
     resolution: {integrity: sha512-AElzzXB/GMRC2w2Va/zzVMoc51/SsFsFzeWLwvKw1Z2dChOhBraB1EdrkH2U/uBSezECKNaGdsTBmfPbGr/UHw==}
     engines: {node: '>=22.12.0'}
     hasBin: true
-
-  '@jfdevelops/skills@0.1.0':
-    resolution: {integrity: sha512-aJRJKSmjaNFf/S/Y0cmYDgWfjFhnb0hFkVOUBWU9x7hCdQRV2P5RGaEY5FxvEtQTeVLrJiKNedBffss2dlIP+Q==}
-    engines: {node: '>=22'}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -925,8 +918,6 @@ snapshots:
       typedoc: 0.28.20(typescript@6.0.3)
       typedoc-plugin-markdown: 4.14.1(typedoc@0.28.20(typescript@7.0.2))
       typescript: 6.0.3
-
-  '@jfdevelops/skills@0.1.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

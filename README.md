@@ -47,9 +47,9 @@ pnpm smoke:create   # create, install, format, lint, and build real projects (ne
 pnpm skills:sync    # regenerate this repository's agent files from the sibling skills checkout
 ```
 
-This repository follows the shared naming, coding, and Git conventions from `@jfdevelops/skills`, installed as checked-in copies with their provenance recorded in `jfdevelops.json`. See [CONTRIBUTING.md](CONTRIBUTING.md) before changing conventions or tooling.
+This repository follows the shared naming, coding, and Git conventions from `jfdevelops/skills`, installed as checked-in copies with their provenance recorded in `jfdevelops.json`. See [CONTRIBUTING.md](CONTRIBUTING.md) before changing conventions or tooling.
 
-Update enabled skills to their latest published source packages, then review changes to the managed copies:
+Update enabled skills, then review changes to the managed copies:
 
 ```sh
 jfdevelops skills update
@@ -57,6 +57,6 @@ jfdevelops skills update jf-git jf-coding-conventions
 jfdevelops skills update jf-git --directory ./my-project
 ```
 
-`init` installs both `@jfdevelops/cli` and `@jfdevelops/skills` as direct development dependencies. `skills update` refreshes source packages with the project package manager, then uses the same local-edit review as `skills sync`. Selecting skills limits which copies are synchronized; updating a package also updates its code and may cross major versions. Local workspace/file packages are synchronized without a registry update. Use `jfdevelops skills --check` in CI to detect stale or edited copies against installed packages.
+`init` installs `@jfdevelops/cli` as a development dependency and fetches every shared convention skill from `jfdevelops/skills` on `main`. `skills update` refreshes dependency-owned skill packages with the project package manager, refreshes shared conventions from `main`, then uses the same local-edit review as `skills sync`. Selecting skills limits which copies are synchronized; updating a package also updates its code and may cross major versions. Local workspace/file packages are synchronized without a registry update. Use `jfdevelops skills --check` in CI to detect stale or edited copies.
 
 Run `jfdevelops update` (or `jfdevelops update ./my-project`) to upgrade the project's CLI to the latest published release and continue the project refresh with that release. It updates skills, rechecks integrations and available skills through init, then reviews generated template tooling and new CI/build configuration. Existing application sources, tests, README files, workspace membership, custom scripts, and unrelated dependencies are preserved. Missing template entry/test stubs can be added. Local tooling edits require conflict review. Projects adopted through init have no recorded scaffold templates, so their existing build tooling is preserved. The command installs dependencies after applying tooling changes.

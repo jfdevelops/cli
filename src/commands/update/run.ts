@@ -4,12 +4,14 @@ import { writeProjectConfig } from '../../config/write.js';
 import { describePackageInstall, installPackage, type DependencyInstaller, type PackageInstaller } from '../../dependencies/install.js';
 import { createChangePlan } from '../../plan/create.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
+import { detectProject } from '../../detect/project.js';
 import { runCommand } from '../../process/run.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { findInstalledPackage } from '../../skills/installed.js';
+import { openSharedSkillsFromMain, type OpenSharedSkills } from '../../skills/shared.js';
 import { confirmAndApply } from '../confirm-and-apply.js';
 import { runInit } from '../init/run.js';
-import { loadConfiguredProject } from '../skills/inspect.js';
+import { MissingConfigError, loadConfiguredProject } from '../skills/inspect.js';
 import { runSkillsUpdate } from '../skills/update.js';
 import type { SkillsSyncStatus } from '../skills/sync.js';
 import type { PackageManagerVersionReader } from '../create/lifecycle.js';
@@ -25,6 +27,7 @@ type UpdateOptions = {
   readPackageManagerVersion?: PackageManagerVersionReader;
   installProject?: (directory: string, packageManager: PackageManagerName) => Promise<void>;
   runInstalledUpdate?: (root: string) => Promise<void>;
+  openSharedSkills?: OpenSharedSkills;
 };
 
 // Run the newly installed release so the refresh uses its templates and migrations, rather than this older process.
@@ -56,8 +59,13 @@ async function installProject(directory: string, packageManager: PackageManagerN
 }
 
 async function refreshProject(options: UpdateOptions): Promise<SkillsSyncStatus> {
-  const { directory, version, prompter } = options;
-  const skillStatus = await runSkillsUpdate({ directory, prompter, ...(options.installPackage ? { installPackage: options.installPackage } : {}) });
+  const { directory, version, prompter, openSharedSkills } = options;
+  const skillStatus = await runSkillsUpdate({
+    directory,
+    prompter,
+    ...(options.installPackage ? { installPackage: options.installPackage } : {}),
+    ...(openSharedSkills ? { openSharedSkills } : {}),
+  });
 
   if (skillStatus !== 'complete' && skillStatus !== 'unchanged') {
 
@@ -65,43 +73,57 @@ async function refreshProject(options: UpdateOptions): Promise<SkillsSyncStatus>
   }
 
   // Re-detect integrations and offer newly available required skills while preserving existing target metadata.
-  const initStatus = await runInit({ directory, version, prompter, ...(options.installDependency ? { installDependency: options.installDependency } : {}) });
+  const initStatus = await runInit({
+    directory,
+    version,
+    prompter,
+    ...(options.installDependency ? { installDependency: options.installDependency } : {}),
+    ...(openSharedSkills ? { openSharedSkills } : {}),
+  });
 
   if (initStatus !== 'complete' && initStatus !== 'unchanged') {
 
     return initStatus;
   }
 
-  const { project, config } = await loadConfiguredProject(directory);
-  const files = await createProjectUpdateFiles(project.root, config, version, options.readPackageManagerVersion);
-  const desiredPaths = new Set(files.map((file) => file.path));
-  const untouched = config.managedFiles.filter((file) => file.owner.type === 'project' && !desiredPaths.has(file.path));
-  const plan = await createChangePlan({
-    projectRoot: project.root,
-    managedFiles: config.managedFiles.filter((file) => !untouched.includes(file)),
-    files,
-    owners: [{ type: 'project' }],
-  });
+  const loaded = await loadConfiguredProject(directory, [], openSharedSkills ?? openSharedSkillsFromMain);
 
-  if (!plan.hasChanges) {
-    prompter.outro('Project setup is up to date.');
+  try {
+    const { project, config } = loaded;
+    const files = await createProjectUpdateFiles(project.root, config, version, options.readPackageManagerVersion);
+    const desiredPaths = new Set(files.map((file) => file.path));
+    const untouched = config.managedFiles.filter((file) => file.owner.type === 'project' && !desiredPaths.has(file.path));
+    const plan = await createChangePlan({
+      projectRoot: project.root,
+      managedFiles: config.managedFiles.filter((file) => !untouched.includes(file)),
+      files,
+      owners: [{ type: 'project' }],
+    });
 
-    return 'unchanged';
+    if (!plan.hasChanges) {
+      prompter.outro('Project setup is up to date.');
+
+      return 'unchanged';
+    }
+
+    const result = await confirmAndApply({ projectRoot: project.root, plan, prompter, isConfigChanged: true, extraSteps: ['Install dependencies after updating project tooling.'] });
+
+    await writeProjectConfig(project.root, { ...config, managedFiles: [...result.managedFiles, ...untouched] });
+
+    if (!result.isComplete) {
+
+      return 'incomplete';
+    }
+
+    await (options.installProject ?? installProject)(project.root, config.project.packageManager);
+    prompter.outro('Project tooling updated.');
+
+    return 'complete';
+  } finally {
+    if (loaded.ownsCheckout) {
+      await loaded.checkout.close();
+    }
   }
-
-  const result = await confirmAndApply({ projectRoot: project.root, plan, prompter, isConfigChanged: true, extraSteps: ['Install dependencies after updating project tooling.'] });
-
-  await writeProjectConfig(project.root, { ...config, managedFiles: [...result.managedFiles, ...untouched] });
-
-  if (!result.isComplete) {
-
-    return 'incomplete';
-  }
-
-  await (options.installProject ?? installProject)(project.root, config.project.packageManager);
-  prompter.outro('Project tooling updated.');
-
-  return 'complete';
 }
 
 export async function runUpdate(options: UpdateOptions): Promise<SkillsSyncStatus> {
@@ -115,10 +137,16 @@ export async function runUpdate(options: UpdateOptions): Promise<SkillsSyncStatu
       return await refreshProject(options);
     }
 
-    const { project, config } = await loadConfiguredProject(directory);
+    // CLI upgrade only needs project metadata; cloning shared skills waits until the refresh step.
+    const project = await detectProject(directory);
+
+    if (!project.config) {
+      throw new MissingConfigError('No jfdevelops.json found. Run jfdevelops init first.');
+    }
+
     const installOptions = {
       directory: project.root,
-      packageManager: config.project.packageManager,
+      packageManager: project.config.project.packageManager,
       packageName: '@jfdevelops/cli@latest',
       isDevelopment: !project.manifest.dependencies?.['@jfdevelops/cli'],
       isWorkspaceRoot: project.workspace?.source === 'pnpm-workspace.yaml',
