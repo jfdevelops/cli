@@ -109,6 +109,7 @@ describe('runInit', () => {
       skills: [
         { name: 'build-forms', required: false },
         { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-docs', required: true },
         { name: 'jf-git', required: true },
         { name: 'jf-naming-conventions', required: true },
         { name: 'validate-forms', required: false },
@@ -146,16 +147,17 @@ describe('runInit', () => {
       agents: ['claude-code'],
       skills: [
         { name: 'build-forms', required: false, source: { package: '@acme/forms', version: '1.0.0', path: './skills/build-forms' } },
-        { name: 'jf-coding-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
-        { name: 'jf-git', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
-        { name: 'jf-naming-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.1.0' } },
+        { name: 'jf-coding-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.2.1' } },
+        { name: 'jf-docs', required: true, source: { package: '@jfdevelops/skills', version: '0.2.1' } },
+        { name: 'jf-git', required: true, source: { package: '@jfdevelops/skills', version: '0.2.1' } },
+        { name: 'jf-naming-conventions', required: true, source: { package: '@jfdevelops/skills', version: '0.2.1' } },
       ],
     });
     expect(config?.managedFiles.filter((file) => file.owner.type === 'skill' && file.owner.name === 'build-forms').map((file) => file.path)).toEqual([
       '.agents/skills/build-forms/SKILL.md',
       '.claude/skills/build-forms/SKILL.md',
     ]);
-    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0', '@jfdevelops/skills': '0.1.0' } });
+    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0', '@jfdevelops/skills': '0.2.1' } });
     expect(transcript).toContain('outro: Project initialized.');
     const preview = transcript.find((line) => line.startsWith('note [Planned changes]')) ?? '';
 
@@ -201,6 +203,7 @@ describe('runInit', () => {
     expect(await readText(projectRoot, 'AGENTS.md')).not.toContain('build-forms');
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
       'jf-coding-conventions',
+      'jf-docs',
       'jf-git',
       'jf-naming-conventions',
       'validate-forms',
@@ -270,6 +273,7 @@ describe('runInit', () => {
       targets: [{ path: '.', kind: 'library' }],
       skills: [
         { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-docs', required: true },
         { name: 'jf-git', required: true },
         { name: 'jf-naming-conventions', required: true },
       ],
@@ -381,6 +385,7 @@ describe('runInit', () => {
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
       'build-forms',
       'jf-coding-conventions',
+      'jf-docs',
       'jf-git',
       'jf-naming-conventions',
     ]);

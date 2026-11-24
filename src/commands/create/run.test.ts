@@ -173,6 +173,7 @@ describe('runCreate', () => {
       targets: [{ path: '.', kind: 'app', template: 'node-app' }],
       skills: [
         { name: 'jf-coding-conventions', required: true },
+        { name: 'jf-docs', required: true },
         { name: 'jf-git', required: true },
         { name: 'jf-naming-conventions', required: true },
       ],

@@ -12,8 +12,8 @@ importers:
         specifier: ^1.8.1
         version: 1.8.1
       '@jfdevelops/skills':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.2.1
+        version: 0.2.1
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -131,8 +131,8 @@ packages:
     engines: {node: '>=22.12.0'}
     hasBin: true
 
-  '@jfdevelops/skills@0.1.0':
-    resolution: {integrity: sha512-aJRJKSmjaNFf/S/Y0cmYDgWfjFhnb0hFkVOUBWU9x7hCdQRV2P5RGaEY5FxvEtQTeVLrJiKNedBffss2dlIP+Q==}
+  '@jfdevelops/skills@0.2.1':
+    resolution: {integrity: sha512-LUnJGihk/ybo+JxdKr9vA2iTFNN3jjoqTgq2KN2QBAeMs60td0/I5cSPRYbHtlmN/5smkI+QVkx0c3U9RpT0GA==}
     engines: {node: '>=22'}
 
   '@jridgewell/resolve-uri@3.1.2':
@@ -926,7 +926,7 @@ snapshots:
       typedoc-plugin-markdown: 4.14.1(typedoc@0.28.20(typescript@7.0.2))
       typescript: 6.0.3
 
-  '@jfdevelops/skills@0.1.0': {}
+  '@jfdevelops/skills@0.2.1': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

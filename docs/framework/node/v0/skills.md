@@ -24,7 +24,7 @@ In this guide you will:
 
 Skills come from packages installed in your project. A package publishes skills by listing them in the `jfdevelops.skills` field of its `package.json` (see [authoring skills](authoring.md)). The CLI reads that metadata and each `SKILL.md` from the installed version, so instructions always match the API you have installed. It never runs anything from those packages to discover skills.
 
-The three shared conventions come from `@jfdevelops/skills`, which the CLI itself depends on, and are always installed.
+The shared conventions come from `@jfdevelops/skills`, which the CLI itself depends on, and are always installed (`jf-naming-conventions`, `jf-coding-conventions`, `jf-git`, and `jf-docs`).
 
 In a workspace, each package only sees skills from its own dependencies plus those of the project root. Skills from an integration package (Convex, Portless, TanStack, or jfdevelops libraries) are offered only after that integration is adopted with `init` or `add addon`.
 

@@ -58,7 +58,7 @@ describe('agent discovery adapters', () => {
     const config = await readProjectConfig(fixture.root);
     const skillNames = config?.skills.map((skill) => skill.name) ?? [];
 
-    expect(skillNames).toEqual(['jf-coding-conventions', 'jf-git', 'jf-naming-conventions']);
+    expect(skillNames).toEqual(['jf-coding-conventions', 'jf-docs', 'jf-git', 'jf-naming-conventions']);
 
     expect(config?.agents).toEqual(['claude-code', 'copilot']);
 
