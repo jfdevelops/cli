@@ -134,6 +134,32 @@ describe('runSkillsStatus', () => {
     await expect(runSkillsStatus({ directory: fixture.root, prompter })).resolves.toBe('failed');
     expect(transcript).toContain('error: No jfdevelops.json found. Run jfdevelops init first.');
   });
+
+  it('does not list required shared skills as addable', async () => {
+    const fixture = await createFixture({
+      'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', dependencies: { next: '15.0.0', '@acme/forms': '1.0.0' } },
+      'jfdevelops.json': {
+        schemaVersion: 1,
+        generator: { package: '@jfdevelops/cli', version: '0.1.0' },
+        project: { name: 'shop', packageManager: 'pnpm' },
+        targets: [{ path: '.', kind: 'app', template: 'next-app' }],
+        addons: [],
+        agents: ['cursor'],
+        formatter: 'prettier',
+        skills: [],
+        managedFiles: [],
+      },
+      ...createSkillPackage(formsPackage, { name: '@acme/forms', version: '1.0.0', skills: ['build-forms'] }),
+    });
+
+    fixtures.push(fixture);
+
+    const { status, transcript } = await getStatus(fixture.root);
+    const available = transcript.find((line) => line.startsWith('info: Also available from installed packages:'));
+
+    expect(status).not.toBe('failed');
+    expect(available).toBe('info: Also available from installed packages: build-forms. Run jfdevelops add skill <name> to enable one.');
+  });
 });
 
 describe('runSkillsSync', () => {

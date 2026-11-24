@@ -192,7 +192,8 @@ export async function inspectSkills(directory: string, {
     });
     const statuses = config.skills.map((skill) => getSkillStatus(skill, candidatesByName.get(skill.name) ?? [], plan));
     const enabledNames = new Set(config.skills.map((skill) => skill.name));
-    const availableNames = [...new Set(catalog.skills.filter((skill) => !enabledNames.has(skill.name)).map((skill) => skill.name))];
+    // Required shared skills install via sync, not add; keep them out of the addable list.
+    const availableNames = [...new Set(catalog.skills.filter((skill) => !enabledNames.has(skill.name) && !skill.required).map((skill) => skill.name))];
 
     return { project, config, integrations, catalog, sources, plan, statuses, availableNames, candidatesByName };
   } finally {
