@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createProgram, type ProgramDependencies } from './program.js';
 import { createFixture } from './testing/fixture.js';
 import { createScriptedPrompter } from './testing/prompter.js';
+import { openTestSharedSkills } from './testing/shared-skills.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
+const openSharedSkills = openTestSharedSkills();
 
 async function runProgram(args: string[], dependencies?: ProgramDependencies) {
-  const program = createProgram('1.2.3', dependencies);
+  const program = createProgram('1.2.3', dependencies ? { openSharedSkills, ...dependencies } : undefined);
   let output = '';
 
   program.exitOverride().configureOutput({

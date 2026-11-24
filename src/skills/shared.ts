@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCommand } from '../process/run.js';
-import { buildSkillCatalog, type CatalogPackage, type SkillCatalog } from './catalog.js';
+import { buildSkillCatalog, findSkillConflicts, type CatalogPackage, type SkillCatalog } from './catalog.js';
 import { discoverPackageSkills } from './discover.js';
 
 export const sharedSkillsPackageName = '@jfdevelops/skills';
@@ -59,22 +59,21 @@ export async function openSharedSkillsFromMain(run: typeof runCommand = runComma
 
 /** Marks every skill from the shared package required and records the checkout revision as its version. */
 export function applySharedSkillsCheckout(catalog: SkillCatalog, checkout: SharedSkillsCheckout): SkillCatalog {
+  const skills = catalog.skills.map((skill) => {
+    if (skill.source.package !== sharedSkillsPackageName) {
 
-  return {
-    ...catalog,
-    skills: catalog.skills.map((skill) => {
-      if (skill.source.package !== sharedSkillsPackageName) {
+      return skill;
+    }
 
-        return skill;
-      }
+    return {
+      ...skill,
+      required: true,
+      source: { ...skill.source, version: checkout.revision },
+    };
+  });
 
-      return {
-        ...skill,
-        required: true,
-        source: { ...skill.source, version: checkout.revision },
-      };
-    }),
-  };
+  // Rebuild conflicts from rewritten skills so filterAddonSkills can match package@version keys.
+  return { ...catalog, skills, conflicts: findSkillConflicts(skills) };
 }
 
 export function sharedSkillsCatalogPackage(checkout: SharedSkillsCheckout): CatalogPackage {

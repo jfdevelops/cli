@@ -99,6 +99,8 @@ export type InspectSkillsOptions = {
   skillNames?: string[];
   // Installed version to use for skills with more than one installed version, keyed by skill name.
   selectedVersions?: Record<string, string>;
+  // When true, treat every required shared skill from main as enabled so sync can install newcomers.
+  includeRequiredShared?: boolean;
   openSharedSkills?: OpenSharedSkills;
   checkout?: SharedSkillsCheckout;
 };
@@ -159,6 +161,7 @@ export async function inspectSkills(directory: string, {
   removedSkills = [],
   selectedVersions = {},
   skillNames,
+  includeRequiredShared = false,
   openSharedSkills = openSharedSkillsFromMain,
   checkout,
 }: InspectSkillsOptions = {}) {
@@ -166,8 +169,8 @@ export async function inspectSkills(directory: string, {
 
   try {
     const { project, integrations, catalog } = loaded;
-    // A full sync installs every required shared skill from main; a named sync only touches the selection.
-    const config = skillNames ? loaded.config : withRequiredSharedSkills(loaded.config, catalog.skills);
+    // Status reports only enabled skills; a full sync opts in to install newly required shared skills.
+    const config = includeRequiredShared ? withRequiredSharedSkills(loaded.config, catalog.skills) : loaded.config;
     const candidatesByName = new Map(config.skills.map((skill) => [skill.name, findSkillCandidates(skill, catalog.skills)]));
     const removed = new Set(removedSkills);
     const sources = config.skills.flatMap((skill) => {

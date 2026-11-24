@@ -62,8 +62,14 @@ describe('runUpdate', () => {
   it('upgrades the CLI before handing the project to the installed release', async () => {
     const { root } = await createProject({ 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' });
     const actions: string[] = [];
+    let sharedSkillsOpened = 0;
 
-    await expect(runUpdate({ openSharedSkills, directory: root,
+    await expect(runUpdate({
+      openSharedSkills: async () => {
+        sharedSkillsOpened += 1;
+        throw new Error('CLI upgrade must not clone shared skills');
+      },
+      directory: root,
       version: '0.2.0',
       prompter: createPrompter().prompter,
       installPackage: async (options) => {
@@ -76,6 +82,7 @@ describe('runUpdate', () => {
       },
     })).resolves.toBe('complete');
     expect(actions).toEqual(['install', 'refresh']);
+    expect(sharedSkillsOpened).toBe(0);
   });
 
   it('runs the installed CLI executable with the project refresh flag', async () => {

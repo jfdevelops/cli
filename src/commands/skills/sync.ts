@@ -73,7 +73,10 @@ async function syncSkills(
   skillNames?: string[],
   openSharedSkills?: InspectSkillsOptions['openSharedSkills'],
 ): Promise<SkillsSyncStatus> {
-  const inspectOptions = { ...(skillNames ? { skillNames } : {}), ...(openSharedSkills ? { openSharedSkills } : {}) };
+  const inspectOptions = {
+    ...(skillNames ? { skillNames } : { includeRequiredShared: true }),
+    ...(openSharedSkills ? { openSharedSkills } : {}),
+  };
   const initial = await inspectSkills(directory, inspectOptions);
 
   if (skillNames) {

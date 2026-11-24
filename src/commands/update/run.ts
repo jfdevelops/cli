@@ -4,13 +4,14 @@ import { writeProjectConfig } from '../../config/write.js';
 import { describePackageInstall, installPackage, type DependencyInstaller, type PackageInstaller } from '../../dependencies/install.js';
 import { createChangePlan } from '../../plan/create.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
+import { detectProject } from '../../detect/project.js';
 import { runCommand } from '../../process/run.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { findInstalledPackage } from '../../skills/installed.js';
 import { openSharedSkillsFromMain, type OpenSharedSkills } from '../../skills/shared.js';
 import { confirmAndApply } from '../confirm-and-apply.js';
 import { runInit } from '../init/run.js';
-import { loadConfiguredProject } from '../skills/inspect.js';
+import { MissingConfigError, loadConfiguredProject } from '../skills/inspect.js';
 import { runSkillsUpdate } from '../skills/update.js';
 import type { SkillsSyncStatus } from '../skills/sync.js';
 import type { PackageManagerVersionReader } from '../create/lifecycle.js';
@@ -136,35 +137,33 @@ export async function runUpdate(options: UpdateOptions): Promise<SkillsSyncStatu
       return await refreshProject(options);
     }
 
-    const loaded = await loadConfiguredProject(directory, [], options.openSharedSkills ?? openSharedSkillsFromMain);
+    // CLI upgrade only needs project metadata; cloning shared skills waits until the refresh step.
+    const project = await detectProject(directory);
 
-    try {
-      const { project, config } = loaded;
-      const installOptions = {
-        directory: project.root,
-        packageManager: config.project.packageManager,
-        packageName: '@jfdevelops/cli@latest',
-        isDevelopment: !project.manifest.dependencies?.['@jfdevelops/cli'],
-        isWorkspaceRoot: project.workspace?.source === 'pnpm-workspace.yaml',
-      };
-
-      prompter.note(describePackageInstall(installOptions.packageManager, installOptions.packageName, installOptions.isDevelopment, installOptions.isWorkspaceRoot), 'Upgrade CLI');
-      prompter.info('The latest CLI will review skill, integration, and generated tooling updates. Package upgrades remain installed if a later review is declined.');
-
-      if (!(await prompter.confirm({ message: 'Upgrade the CLI and review project updates?', initialValue: true }))) {
-        throw new PromptCancelledError('Declined');
-      }
-
-      await install(installOptions);
-      await runInstalled(project.root);
-      prompter.outro('CLI and project update finished.');
-
-      return 'complete';
-    } finally {
-      if (loaded.ownsCheckout) {
-        await loaded.checkout.close();
-      }
+    if (!project.config) {
+      throw new MissingConfigError('No jfdevelops.json found. Run jfdevelops init first.');
     }
+
+    const installOptions = {
+      directory: project.root,
+      packageManager: project.config.project.packageManager,
+      packageName: '@jfdevelops/cli@latest',
+      isDevelopment: !project.manifest.dependencies?.['@jfdevelops/cli'],
+      isWorkspaceRoot: project.workspace?.source === 'pnpm-workspace.yaml',
+    };
+
+    prompter.note(describePackageInstall(installOptions.packageManager, installOptions.packageName, installOptions.isDevelopment, installOptions.isWorkspaceRoot), 'Upgrade CLI');
+    prompter.info('The latest CLI will review skill, integration, and generated tooling updates. Package upgrades remain installed if a later review is declined.');
+
+    if (!(await prompter.confirm({ message: 'Upgrade the CLI and review project updates?', initialValue: true }))) {
+      throw new PromptCancelledError('Declined');
+    }
+
+    await install(installOptions);
+    await runInstalled(project.root);
+    prompter.outro('CLI and project update finished.');
+
+    return 'complete';
   } catch (error) {
     if (error instanceof PromptCancelledError) {
       prompter.cancel('Project update cancelled.');

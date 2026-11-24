@@ -61,7 +61,8 @@ try {
   expectCli(['skills', 'project'], { status: 0, output: ['No skills are enabled.', 'Run jfdevelops skills sync'] });
   expectCli(['skills', 'project', '--check'], { status: 1 });
   expectCli(['skills', 'missing-project'], { status: 1, output: ['No package.json found'] });
-  expectCli(['add', '--list', '--directory', 'project'], { status: 0, output: ['jf-git', 'convex'] });
+  // Shared convention skills come from jfdevelops/skills main via sync, not add --list.
+  expectCli(['add', '--list', '--directory', 'project'], { status: 0, output: ['None available from installed packages', 'convex'] });
 
   // Interactive commands refuse to run rather than waiting for input that cannot arrive.
   for (const [args, name] of [

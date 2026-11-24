@@ -354,6 +354,28 @@ describe('runSkillsUpdate', () => {
     expect(installs).toEqual([]);
   });
 
+  it('installs newly required shared skills on a default update without naming them', async () => {
+    const projectRoot = await createInitializedProject();
+    const config = await readProjectConfig(projectRoot);
+
+    await writeFile(join(projectRoot, 'jfdevelops.json'), `${JSON.stringify({
+      ...config,
+      skills: (config?.skills ?? []).filter((skill) => skill.name !== 'jf-docs'),
+      managedFiles: (config?.managedFiles ?? []).filter((file) => file.owner.type !== 'skill' || file.owner.name !== 'jf-docs'),
+    }, null, 2)}\n`);
+    await rm(join(projectRoot, '.agents/skills/jf-docs'), { recursive: true, force: true });
+    await rm(join(projectRoot, '.claude/skills/jf-docs'), { recursive: true, force: true });
+
+    await expect(runSkillsUpdate({
+      directory: projectRoot,
+      openSharedSkills,
+      prompter: createScriptedPrompter(answer()).prompter,
+      installPackage: async () => undefined,
+    })).resolves.toBe('complete');
+    expect(existsSync(join(projectRoot, '.agents/skills/jf-docs/SKILL.md'))).toBe(true);
+    expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toContain('jf-docs');
+  });
+
   it('does not install packages when the update is declined', async () => {
     const projectRoot = await createInitializedProject();
     const installs: string[] = [];

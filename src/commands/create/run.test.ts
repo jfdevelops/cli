@@ -119,11 +119,7 @@ describe('runCreate', () => {
         prompter,
         answers: { kind: 'app' },
         nonInteractive: { conflicts: 'keep' },
-        installDependency: installTestDependency,
-        formatProject: async () => undefined,
-        verifyProject: async () => undefined,
-        initializeGit: async () => undefined,
-        checkGitIdentity: async () => true,
+        ...noopLifecycle,
       }),
     ).resolves.toBe('complete');
 

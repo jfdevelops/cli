@@ -16,6 +16,7 @@ import type { PackageManagerName } from './detect/package-manager.js';
 import { createClackPrompter } from './prompts/clack.js';
 import { createLoggingPrompter } from './prompts/logging.js';
 import type { Prompter } from './prompts/prompter.js';
+import type { OpenSharedSkills } from './skills/shared.js';
 import type { UpstreamSkills } from './skills/upstream.js';
 
 export type ProgramDependencies = {
@@ -25,6 +26,7 @@ export type ProgramDependencies = {
   installPackage?: PackageInstaller;
   listPackedFiles?: PackedFileLister;
   loadUpstreamSkills?: () => Promise<UpstreamSkills>;
+  openSharedSkills?: OpenSharedSkills;
 };
 
 const defaultDependencies: ProgramDependencies = {
@@ -193,6 +195,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
             }
           : {}),
         ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+        ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
       });
 
       if (status === 'incomplete' || status === 'failed') {
@@ -247,6 +250,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
               }
             : {}),
           ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+          ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
         });
 
         if (status === 'incomplete' || status === 'failed') {
@@ -267,6 +271,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
       ...options,
       prompter: dependencies.createPrompter(),
       ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
+      ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
     });
 
     if (status === 'incomplete' || status === 'failed') {
@@ -286,7 +291,13 @@ export function createProgram(version: string, dependencies = defaultDependencie
         return;
       }
 
-      if ((await runAddList({ directory: options.directory, prompter: dependencies.createPrompter() })) === 'failed') {
+      if (
+        (await runAddList({
+          directory: options.directory,
+          prompter: dependencies.createPrompter(),
+          ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
+        })) === 'failed'
+      ) {
         process.exitCode = 1;
       }
     });
@@ -325,6 +336,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
         isRefreshingProject: Boolean(options.refreshProject),
         ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
         ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
+        ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
       });
 
       if (status === 'incomplete' || status === 'failed') {
@@ -340,7 +352,11 @@ export function createProgram(version: string, dependencies = defaultDependencie
     .argument('[directory]', 'project directory', '.')
     .option('--check', 'exit with code 1 when skills need syncing')
     .action(async (directory: string, options: { check?: boolean }) => {
-      const status = await runSkillsStatus({ directory, prompter: dependencies.createPrompter() });
+      const status = await runSkillsStatus({
+        directory,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
+      });
 
       if (status === 'failed' || (options.check && status === 'out-of-sync')) {
         process.exitCode = 1;
@@ -362,6 +378,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
         skillNames,
         prompter: dependencies.createPrompter(),
         ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
+        ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
       });
 
       if (status === 'incomplete' || status === 'failed') {
@@ -395,7 +412,11 @@ export function createProgram(version: string, dependencies = defaultDependencie
         program.error('jfdevelops skills sync is interactive; run it in a terminal.');
       }
 
-      const status = await runSkillsSync({ directory, prompter: dependencies.createPrompter() });
+      const status = await runSkillsSync({
+        directory,
+        prompter: dependencies.createPrompter(),
+        ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
+      });
 
       if (status === 'incomplete' || status === 'failed') {
         process.exitCode = 1;
