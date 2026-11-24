@@ -1,5 +1,11 @@
 # @jfdevelops/cli
 
+## 0.10.0
+
+### Minor Changes
+
+- d71e22c: Install every shared convention skill by fetching `jfdevelops/skills` on `main` at install/sync time, with no hardcoded skill list and without pinning `@jfdevelops/skills` as an npm dependency.
+
 ## 0.9.0
 
 ### Minor Changes
