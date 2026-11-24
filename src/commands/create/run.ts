@@ -13,9 +13,8 @@ import { refreshManagedFiles } from '../../plan/refresh.js';
 import { askValidText } from '../../prompts/ask-valid.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { agentNames, type AgentName } from '../../skills/agents.js';
-import { buildSkillCatalog } from '../../skills/catalog.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
-import { findSharedSkillsPackage } from '../../skills/shared.js';
+import { buildSkillCatalogWithSharedSkills, openSharedSkillsFromMain, type OpenSharedSkills } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { chooseAgents } from '../agents.js';
 import { listPlannedEntries, resolveConflicts } from '../review.js';
@@ -88,6 +87,7 @@ export type CreateOptions = {
   initializeGit?: GitInitializer;
   checkGitIdentity?: GitIdentityCheck;
   readPackageManagerVersion?: PackageManagerVersionReader;
+  openSharedSkills?: OpenSharedSkills;
 };
 
 export type CreateStatus = 'complete' | 'incomplete' | 'cancelled' | 'failed';
@@ -302,6 +302,7 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     initializeGit = initializeProjectGit,
     checkGitIdentity = hasGitIdentity,
     readPackageManagerVersion: readVersion = readPackageManagerVersion,
+    openSharedSkills = openSharedSkillsFromMain,
   } = options;
   const selection = await chooseProject(options);
 
@@ -325,8 +326,11 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     ? (options.answers ? selection.remoteUrl : await chooseRemoteUrl(prompter))
     : undefined;
 
-  const catalog = await buildSkillCatalog(selection.directory, [], [{ directory: findSharedSkillsPackage(), scope: '.', required: true }]);
-  const selectedSkills = catalog.skills;
+  const checkout = await openSharedSkills();
+
+  try {
+    const catalog = await buildSkillCatalogWithSharedSkills(selection.directory, [], checkout);
+    const selectedSkills = catalog.skills;
   const { workspace } = selection;
   const templateFiles = workspace
     ? createWorkspaceFiles({
@@ -460,6 +464,9 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   prompter.outro(`Created ${plannedConfig.project.name} in ${selection.directory}.`);
 
   return 'complete';
+  } finally {
+    await checkout.close();
+  }
 }
 
 export async function runCreate(options: CreateOptions): Promise<CreateStatus> {

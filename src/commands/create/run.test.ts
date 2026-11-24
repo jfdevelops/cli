@@ -8,6 +8,7 @@ import { detectWorkspace } from '../../detect/workspace.js';
 import { hashContent } from '../../plan/hash.js';
 import { createFixture } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question } from '../../testing/prompter.js';
+import { openTestSharedSkills } from '../../testing/shared-skills.js';
 import { runCreate, type CreateOptions } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
@@ -96,6 +97,7 @@ const noopLifecycle = {
   initializeGit: async () => undefined,
   checkGitIdentity: async () => true,
   readPackageManagerVersion: async () => '10.28.1',
+  openSharedSkills: openTestSharedSkills(),
 };
 
 afterEach(async () => {

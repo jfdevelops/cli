@@ -1,4 +1,5 @@
 import type { Prompter } from '../../prompts/prompter.js';
+import type { OpenSharedSkills } from '../../skills/shared.js';
 import { inspectSkills, type SkillStatus } from './inspect.js';
 
 export type SkillsStatusResult = 'in-sync' | 'out-of-sync' | 'failed';
@@ -15,11 +16,19 @@ function formatStatuses(statuses: SkillStatus[]) {
 }
 
 /** Reports whether each enabled skill matches its installed source package. Reads only. */
-export async function runSkillsStatus({ directory, prompter }: { directory: string; prompter: Prompter }): Promise<SkillsStatusResult> {
+export async function runSkillsStatus({
+  directory,
+  prompter,
+  openSharedSkills,
+}: {
+  directory: string;
+  prompter: Prompter;
+  openSharedSkills?: OpenSharedSkills;
+}): Promise<SkillsStatusResult> {
   prompter.intro('jfdevelops skills');
 
   try {
-    const { catalog, plan, statuses, availableNames } = await inspectSkills(directory);
+    const { catalog, plan, statuses, availableNames } = await inspectSkills(directory, openSharedSkills ? { openSharedSkills } : {});
 
     for (const problem of catalog.problems) {
       prompter.warn(`${problem.package}: ${problem.message}`);

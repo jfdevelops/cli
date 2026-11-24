@@ -10,12 +10,14 @@ import { createProjectUpdateFiles } from '../update/files.js';
 import type { PackageInstaller } from '../../dependencies/install.js';
 import { createFixture, type FixtureFiles } from '../../testing/fixture.js';
 import { createScriptedPrompter, type Question, type Respond } from '../../testing/prompter.js';
+import { openTestSharedSkills } from '../../testing/shared-skills.js';
 import { createSkillDocument, createSkillPackage } from '../../testing/skill-package.js';
 import { runInit } from '../init/run.js';
 import { runSkillsStatus } from '../skills/status.js';
 import { runAdd, runAddList } from './run.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
+const openSharedSkills = openTestSharedSkills();
 
 // Accepts defaults and confirms, unless a handler overrides the question.
 function answer(overrides: (question: Question) => ReturnType<Respond> | undefined = () => undefined): Respond {
@@ -68,7 +70,13 @@ async function createInitializedProject(files: FixtureFiles, enabledSkills: stri
 
   fixtures.push(fixture);
 
-  await expect(runInit({ directory: fixture.root, version: '0.1.0', prompter, installDependency: async () => undefined })).resolves.toBe('complete');
+  await expect(runInit({
+    directory: fixture.root,
+    version: '0.1.0',
+    prompter,
+    installDependency: async () => undefined,
+    openSharedSkills,
+  })).resolves.toBe('complete');
 
   return fixture.root;
 }
@@ -98,7 +106,7 @@ async function readText(projectRoot: string, path: string) {
 
 async function add(projectRoot: string, options: { kind?: 'skill' | 'addon' | 'package'; name?: string; installPackage?: PackageInstaller }, respond = answer()) {
   const { prompter, transcript } = createScriptedPrompter(respond);
-  const status = await runAdd({ directory: projectRoot, prompter, ...options });
+  const status = await runAdd({ openSharedSkills, directory: projectRoot, prompter, ...options });
 
   return { status, transcript };
 }
@@ -113,7 +121,7 @@ describe('runAddList', () => {
     const before = await readText(projectRoot, 'jfdevelops.json');
     const { prompter, transcript } = createScriptedPrompter(answer());
 
-    await expect(runAddList({ directory: projectRoot, prompter })).resolves.toBe('complete');
+    await expect(runAddList({ openSharedSkills, directory: projectRoot, prompter })).resolves.toBe('complete');
 
     const listing = transcript.find((line) => line.startsWith('note [Available additions]')) ?? '';
 
@@ -130,7 +138,7 @@ describe('add skill', () => {
     const projectRoot = await createInitializedProject(createAppFiles(), ['build-forms']);
     const before = createScriptedPrompter(answer());
 
-    await runSkillsStatus({ directory: projectRoot, prompter: before.prompter });
+    await runSkillsStatus({ openSharedSkills, directory: projectRoot, prompter: before.prompter });
     expect(before.transcript).toContain('info: Also available from installed packages: validate-forms. Run jfdevelops add skill <name> to enable one.');
 
     const { status, transcript } = await add(projectRoot, { kind: 'skill', name: 'validate-forms' });
@@ -143,7 +151,7 @@ describe('add skill', () => {
 
     const status2 = createScriptedPrompter(answer());
 
-    await expect(runSkillsStatus({ directory: projectRoot, prompter: status2.prompter })).resolves.toBe('in-sync');
+    await expect(runSkillsStatus({ openSharedSkills, directory: projectRoot, prompter: status2.prompter })).resolves.toBe('in-sync');
   });
 
   it('reports skills that are already enabled or unavailable', async () => {
@@ -226,7 +234,7 @@ describe('add addon', () => {
     );
     const listing = createScriptedPrompter(answer());
 
-    await runAddList({ directory: projectRoot, prompter: listing.prompter });
+    await runAddList({ openSharedSkills, directory: projectRoot, prompter: listing.prompter });
     expect(listing.transcript.join('\n')).not.toContain('portless-dev');
 
     const { status, transcript } = await add(projectRoot, { kind: 'addon', name: 'portless', installPackage: () => Promise.reject(new Error('should not install')) });

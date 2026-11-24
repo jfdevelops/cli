@@ -2,17 +2,33 @@ import { join } from 'node:path';
 import { readPackageManifest } from '../../detect/manifest.js';
 import { describePackageInstall, installPackage, type PackageInstaller } from '../../dependencies/install.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
+import { openSharedSkillsFromMain, sharedSkillsPackageName, type OpenSharedSkills } from '../../skills/shared.js';
 import { loadConfiguredProject } from './inspect.js';
 import { runSkillsSync, type SkillsSyncStatus } from './sync.js';
 
-type UpdateOptions = { directory: string; prompter: Prompter; skillNames?: string[]; installPackage?: PackageInstaller };
+type UpdateOptions = {
+  directory: string;
+  prompter: Prompter;
+  skillNames?: string[];
+  installPackage?: PackageInstaller;
+  openSharedSkills?: OpenSharedSkills;
+};
 
 // Refresh source packages first, then use the normal managed-file review for the selected copies.
-export async function runSkillsUpdate({ directory, prompter, skillNames, installPackage: install = installPackage }: UpdateOptions): Promise<SkillsSyncStatus> {
+export async function runSkillsUpdate({
+  directory,
+  prompter,
+  skillNames,
+  installPackage: install = installPackage,
+  openSharedSkills = openSharedSkillsFromMain,
+}: UpdateOptions): Promise<SkillsSyncStatus> {
   prompter.intro('jfdevelops skills update');
 
   try {
-    const { project, config } = await loadConfiguredProject(directory);
+    const loaded = await loadConfiguredProject(directory, [], openSharedSkills);
+    const { project, config } = loaded;
+
+    try {
     const names = skillNames?.length ? [...new Set(skillNames)] : config.skills.map((skill) => skill.name);
     const unknown = names.filter((name) => !config.skills.some((skill) => skill.name === name));
 
@@ -22,6 +38,11 @@ export async function runSkillsUpdate({ directory, prompter, skillNames, install
 
     const packages = new Set(config.skills.filter((skill) => names.includes(skill.name)).map((skill) => skill.source.package));
     const installs: Parameters<PackageInstaller>[0][] = [];
+
+    if (packages.has(sharedSkillsPackageName)) {
+      prompter.info(`Shared convention skills refresh from ${sharedSkillsPackageName} main during sync.`);
+      packages.delete(sharedSkillsPackageName);
+    }
 
     for (const scope of [...new Set(['.', ...config.targets.map((target) => target.path)])]) {
       const scopeDirectory = join(project.root, scope);
@@ -34,11 +55,11 @@ export async function runSkillsUpdate({ directory, prompter, skillNames, install
       for (const packageName of packages) {
         const specifier = manifest.dependencies?.[packageName] ?? manifest.devDependencies?.[packageName] ?? manifest.optionalDependencies?.[packageName];
 
-        if (!specifier && !(scope === '.' && packageName === '@jfdevelops/skills')) {
+        if (!specifier) {
           continue;
         }
 
-        if (specifier && /^(workspace:|file:|link:|portal:)/.test(specifier)) {
+        if (/^(workspace:|file:|link:|portal:)/.test(specifier)) {
           prompter.info(`${packageName} in ${scope} uses a local source; syncing its installed skills without a registry update.`);
           continue;
         }
@@ -70,13 +91,18 @@ export async function runSkillsUpdate({ directory, prompter, skillNames, install
       }
     }
 
-    const status = await runSkillsSync({ directory, prompter, skillNames: names });
+    const status = await runSkillsSync({ directory, prompter, skillNames: names, openSharedSkills });
 
     if (status === 'cancelled' && installs.length > 0) {
       prompter.info('Source package upgrades remain installed, including manifest and lockfile changes.');
     }
 
     return status;
+    } finally {
+      if (loaded.ownsCheckout) {
+        await loaded.checkout.close();
+      }
+    }
   } catch (error) {
     if (error instanceof PromptCancelledError) {
       prompter.cancel('Update cancelled.');

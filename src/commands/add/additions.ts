@@ -1,5 +1,6 @@
 import { compareStrings } from '../../compare.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
+import { openSharedSkillsFromMain, type OpenSharedSkills } from '../../skills/shared.js';
 import { loadConfiguredProject } from '../skills/inspect.js';
 import { knownAddons } from './addons.js';
 
@@ -10,21 +11,28 @@ export type AvailableAddon = { name: string; package: string; isInstalled: boole
  * enabled (addon skills only once their addon is enabled), integrations that are installed but not
  * adopted or known and not installed, and whether workspace packages can be scaffolded.
  */
-export async function findAdditions(directory: string, pendingAddons: string[] = []) {
-  const configured = await loadConfiguredProject(directory, pendingAddons);
-  const { project, config, integrations, catalog } = configured;
-  const enabledSkills = new Set(config.skills.map((skill) => skill.name));
-  const enabledAddons = new Set(config.addons.map((addon) => addon.name));
-  const skills: CatalogSkill[] = catalog.skills.filter((skill) => !enabledSkills.has(skill.name));
-  const installedAddons = integrations
-    .filter((integration) => !enabledAddons.has(integration.name))
-    .map((integration) => ({ name: integration.name, package: integration.package, isInstalled: true, description: 'installed, not adopted' }));
-  const installableAddons = knownAddons
-    .filter((addon) => !enabledAddons.has(addon.name) && !integrations.some((integration) => integration.name === addon.name))
-    .map((addon) => ({ name: addon.name, package: addon.package, isInstalled: false, description: addon.description }));
-  const addons: AvailableAddon[] = [...installedAddons, ...installableAddons].sort((left, right) => compareStrings(left.name, right.name));
+export async function findAdditions(directory: string, pendingAddons: string[] = [], openSharedSkills: OpenSharedSkills = openSharedSkillsFromMain) {
+  const configured = await loadConfiguredProject(directory, pendingAddons, openSharedSkills);
 
-  return { ...configured, skills, addons, canAddPackage: project.workspace !== undefined };
+  try {
+    const { project, config, integrations, catalog } = configured;
+    const enabledSkills = new Set(config.skills.map((skill) => skill.name));
+    const enabledAddons = new Set(config.addons.map((addon) => addon.name));
+    const skills: CatalogSkill[] = catalog.skills.filter((skill) => !enabledSkills.has(skill.name) && !skill.required);
+    const installedAddons = integrations
+      .filter((integration) => !enabledAddons.has(integration.name))
+      .map((integration) => ({ name: integration.name, package: integration.package, isInstalled: true, description: 'installed, not adopted' }));
+    const installableAddons = knownAddons
+      .filter((addon) => !enabledAddons.has(addon.name) && !integrations.some((integration) => integration.name === addon.name))
+      .map((addon) => ({ name: addon.name, package: addon.package, isInstalled: false, description: addon.description }));
+    const addons: AvailableAddon[] = [...installedAddons, ...installableAddons].sort((left, right) => compareStrings(left.name, right.name));
+
+    return { project, config, integrations, catalog, skills, addons, canAddPackage: project.workspace !== undefined };
+  } finally {
+    if (configured.ownsCheckout) {
+      await configured.checkout.close();
+    }
+  }
 }
 
 export type ProjectAdditions = Awaited<ReturnType<typeof findAdditions>>;

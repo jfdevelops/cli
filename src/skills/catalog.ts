@@ -3,6 +3,7 @@ import { compareStrings } from '../compare.js';
 import { readPackageManifest } from '../detect/manifest.js';
 import { discoverPackageSkills, type DiscoveredSkill } from './discover.js';
 import { findInstalledPackage } from './installed.js';
+import { sharedSkillsPackageName } from './shared.js';
 
 export type CatalogSkill = Omit<DiscoveredSkill, 'path'> & {
   source: { package: string; version: string; path: string };
@@ -83,6 +84,11 @@ export async function buildSkillCatalog(projectRoot: string, scopes: string[], c
     }
 
     for (const dependency of readDependencyNames(manifest)) {
+      // Shared conventions are loaded from jfdevelops/skills main, not from an installed package copy.
+      if (dependency === sharedSkillsPackageName) {
+        continue;
+      }
+
       const packageDirectory = findInstalledPackage(scopeDirectory, dependency, projectRoot);
 
       if (!packageDirectory) {

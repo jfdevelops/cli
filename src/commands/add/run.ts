@@ -1,5 +1,6 @@
 import { installPackage as defaultInstallPackage, type PackageInstaller } from '../../dependencies/install.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
+import type { OpenSharedSkills } from '../../skills/shared.js';
 import { findAdditions, formatAdditions, type ProjectAdditions } from './additions.js';
 import { addAddon } from './addon.js';
 import { applyAdditions, type AddStatus } from './apply.js';
@@ -14,6 +15,7 @@ export type AddOptions = {
   kind?: AdditionKind;
   name?: string;
   installPackage?: PackageInstaller;
+  openSharedSkills?: OpenSharedSkills;
 };
 
 // Lets the user pick a kind of addition and then the item, offering only kinds that are available.
@@ -50,15 +52,22 @@ async function browseAdditions(options: AddOptions, additions: ProjectAdditions)
       choices: additions.addons.map((addon) => ({ value: addon.name, label: addon.name, hint: addon.isInstalled ? 'installed, not adopted' : addon.description })),
     });
 
-    return addAddon({ ...options, additions, name, installPackage: options.installPackage ?? defaultInstallPackage });
+    return addAddon({
+      directory: options.directory,
+      additions,
+      name,
+      prompter,
+      installPackage: options.installPackage ?? defaultInstallPackage,
+      ...(options.openSharedSkills ? { openSharedSkills: options.openSharedSkills } : {}),
+    });
   }
 
   return addPackage(additions, await prompter.text({ message: 'Package name', placeholder: '@scope/name' }), prompter);
 }
 
 async function addToProject(options: AddOptions): Promise<AddStatus> {
-  const { directory, prompter, kind, name } = options;
-  const additions = await findAdditions(directory);
+  const { directory, prompter, kind, name, openSharedSkills } = options;
+  const additions = await findAdditions(directory, [], openSharedSkills);
 
   if (kind && name) {
     switch (kind) {
@@ -67,7 +76,14 @@ async function addToProject(options: AddOptions): Promise<AddStatus> {
         return addSkill(additions, name, prompter);
       case 'addon':
 
-        return addAddon({ directory, additions, name, prompter, installPackage: options.installPackage ?? defaultInstallPackage });
+        return addAddon({
+          directory,
+          additions,
+          name,
+          prompter,
+          installPackage: options.installPackage ?? defaultInstallPackage,
+          ...(openSharedSkills ? { openSharedSkills } : {}),
+        });
       case 'package':
 
         return addPackage(additions, name, prompter);
@@ -104,11 +120,19 @@ export async function runAdd(options: AddOptions): Promise<AddStatus> {
 }
 
 /** Lists compatible additions without changing anything. */
-export async function runAddList({ directory, prompter }: { directory: string; prompter: Prompter }) {
+export async function runAddList({
+  directory,
+  prompter,
+  openSharedSkills,
+}: {
+  directory: string;
+  prompter: Prompter;
+  openSharedSkills?: OpenSharedSkills;
+}) {
   prompter.intro('jfdevelops add --list');
 
   try {
-    prompter.note(formatAdditions(await findAdditions(directory)), 'Available additions');
+    prompter.note(formatAdditions(await findAdditions(directory, [], openSharedSkills)), 'Available additions');
     prompter.outro('Run jfdevelops add to choose interactively.');
 
     return 'complete' as const;

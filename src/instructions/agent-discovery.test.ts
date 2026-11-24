@@ -9,6 +9,7 @@ import { readSkillFiles } from '../skills/files.js';
 import { parseSkillFrontmatter } from '../skills/frontmatter.js';
 import { createFixture } from '../testing/fixture.js';
 import { createScriptedPrompter } from '../testing/prompter.js';
+import { openTestSharedSkills } from '../testing/shared-skills.js';
 
 const fixtures: Array<{ remove: () => Promise<void> }> = [];
 
@@ -51,7 +52,13 @@ describe('agent discovery adapters', () => {
 
     fixtures.push(fixture);
 
-    const status = await runInit({ directory: fixture.root, version: '0.1.0', prompter, installDependency: async () => undefined });
+    const status = await runInit({
+      directory: fixture.root,
+      version: '0.1.0',
+      prompter,
+      installDependency: async () => undefined,
+      openSharedSkills: openTestSharedSkills(),
+    });
 
     expect(status, transcript.join('\n')).toBe('complete');
 

@@ -24,7 +24,7 @@ In this guide you will:
 
 Skills come from packages installed in your project. A package publishes skills by listing them in the `jfdevelops.skills` field of its `package.json` (see [authoring skills](authoring.md)). The CLI reads that metadata and each `SKILL.md` from the installed version, so instructions always match the API you have installed. It never runs anything from those packages to discover skills.
 
-The shared conventions come from `@jfdevelops/skills`, which the CLI itself depends on, and are always installed (`jf-naming-conventions`, `jf-coding-conventions`, `jf-git`, and `jf-docs`).
+Shared convention skills come from `https://github.com/jfdevelops/skills` on `main`. Each install or full sync clones that branch, discovers every skill registered in its package metadata, and installs all of them. The CLI does not hardcode the skill list or pin an `@jfdevelops/skills` npm dependency for those conventions.
 
 In a workspace, each package only sees skills from its own dependencies plus those of the project root. Skills from an integration package (Convex, Portless, TanStack, or jfdevelops libraries) are offered only after that integration is adopted with `init` or `add addon`.
 
@@ -90,7 +90,7 @@ The command requires Git and network access. It clones a temporary snapshot, rep
 
 Use `jfdevelops skills outdated --check` in CI: it exits with code 1 for differences or a failed comparison and code 0 otherwise. Without `--check`, differences are informational; failures still exit with code 1. With no installed skills, it reports that fact without accessing the network.
 
-`jfdevelops skills` and `jfdevelops skills sync` continue to compare against installed package versions. Sync does not download or apply upstream `main`.
+`jfdevelops skills` and `jfdevelops skills sync` refresh shared convention skills from upstream `main` (recording the commit as the source version) and compare other skills against their installed package versions. A full sync also enables any required shared skills that are not in the project yet.
 
 ## Next steps
 

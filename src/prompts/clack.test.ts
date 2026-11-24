@@ -3,6 +3,7 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { runInit } from '../commands/init/run.js';
 import { createFixture } from '../testing/fixture.js';
+import { openTestSharedSkills } from '../testing/shared-skills.js';
 import { createClackPrompter } from './clack.js';
 import { PromptCancelledError } from './prompter.js';
 
@@ -105,7 +106,13 @@ describe('createClackPrompter', () => {
     const terminal = createTerminal();
 
     try {
-      const status = runInit({ directory: fixture.root, version: '0.1.0', prompter: terminal.prompter, installDependency: async () => undefined });
+      const status = runInit({
+        directory: fixture.root,
+        version: '0.1.0',
+        prompter: terminal.prompter,
+        installDependency: async () => undefined,
+        openSharedSkills: openTestSharedSkills(),
+      });
 
       await terminal.waitFor('Use these target types?');
       await terminal.type(keys.escape);

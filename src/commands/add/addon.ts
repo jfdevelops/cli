@@ -2,13 +2,21 @@ import { join } from 'node:path';
 import { describePackageInstall, type PackageInstaller } from '../../dependencies/install.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import type { CatalogSkill } from '../../skills/catalog.js';
+import type { OpenSharedSkills } from '../../skills/shared.js';
 import { findAdditions, type ProjectAdditions } from './additions.js';
 import { resolveAddon, type AddonDefinition } from './addons.js';
 import { applyAdditions, type AdditionChanges, type AddStatus } from './apply.js';
 import { createDocsSetup, docsAddonName, isDocsSetUp } from './docs.js';
 import { chooseSource } from './skill.js';
 
-type AddAddonOptions = { directory: string; additions: ProjectAdditions; name: string; prompter: Prompter; installPackage: PackageInstaller };
+type AddAddonOptions = {
+  directory: string;
+  additions: ProjectAdditions;
+  name: string;
+  prompter: Prompter;
+  installPackage: PackageInstaller;
+  openSharedSkills?: OpenSharedSkills;
+};
 
 function describeScope(scope: string) {
 
@@ -115,7 +123,7 @@ export async function addAddon(options: AddAddonOptions): Promise<AddStatus> {
   }
 
   try {
-    const current = await findAdditions(directory, [addon.name]);
+    const current = await findAdditions(directory, [addon.name], options.openSharedSkills);
     const skills = await chooseAddonSkills(current.skills.filter((skill) => skill.source.package === addon.package), prompter);
     const { options: addonOptions, ...setup } = await createAddonSetup(addon, current, prompter);
     const otherAddons = current.config.addons.filter((candidate) => candidate.name !== addon.name);

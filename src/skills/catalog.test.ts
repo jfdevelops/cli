@@ -32,10 +32,10 @@ describe('buildSkillCatalog', () => {
     });
     const catalog = await buildSkillCatalog(root, ['.', 'apps/web', 'packages/ui']);
 
+    // @jfdevelops/skills is skipped in dependency discovery; shared skills come from a main checkout.
     expect(catalog.skills).toMatchObject([
       { name: 'build-forms', source: { package: '@acme/forms', version: '2.0.0', path: './skills/build-forms' }, scopes: ['apps/web'] },
       { name: 'build-forms', source: { package: '@acme/forms', version: '1.0.0' }, scopes: ['packages/ui'] },
-      { name: 'jf-git', source: { package: '@jfdevelops/skills', version: '0.1.0' }, scopes: ['.', 'packages/ui'] },
     ]);
     expect(catalog.conflicts).toEqual([
       {
