@@ -148,7 +148,7 @@ It needs a terminal and npm on `PATH`, and it does not need `jfdevelops.json`. S
 
 ## `init [directory]`
 
-Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions. A later `update` (for `@jfdevelops/cli` and `@jfdevelops/skills`) or `skills update` (for `@jfdevelops/skills`) keeps an exact version exact when it upgrades; a range stays a range. Shared skill files still come from `main`, not from the installed package.
+Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions. A later `update` (for `@jfdevelops/cli` and `@jfdevelops/skills`) or `skills update` (for `@jfdevelops/skills`) keeps a plain `x.y.z` version exact when it upgrades; any other specifier gets your package manager's default range. The CLI the project already has installed performs the `@jfdevelops/cli` upgrade, so upgrading from a release without this behavior saves a range; run that first upgrade as `npx @jfdevelops/cli@latest update` to keep the pin. Shared skill files still come from `main`, not from the installed package.
 
 ### Non-interactive flags
 
@@ -225,7 +225,7 @@ Needs a terminal and `jfdevelops.json`. It refreshes shared convention skills to
 
 ## `skills update [skills...]`
 
-Needs a terminal and `jfdevelops.json`. Use `-d, --directory <path>` to choose a project. Names that no enabled skill uses are rejected before anything is installed.
+Needs a terminal and `jfdevelops.json`. Use `-d, --directory <path>` to choose a project. Names that no enabled skill uses are rejected before anything is installed. A source package pinned to a plain `x.y.z` version stays exact after the upgrade; see [Update skill sources](skills.md#update-skill-sources).
 
 The command previews source-package upgrades to `latest`, warns that updating a source package updates all of its code, and asks for confirmation. Declining cancels the command. Multiple skills from the same package share one package upgrade per scope. Local `workspace:`, `file:`, `link:`, and `portal:` sources are synced without a registry update. An optional source dependency makes the command exit with 1 and an error before anything is installed; update that package with your package manager, then run `skills sync`. When shared convention skills are selected and the project declares `@jfdevelops/skills`, that package is upgraded to `latest` too, but the shared skill files still refresh from `main` during the sync.
 
