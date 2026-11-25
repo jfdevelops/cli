@@ -1,5 +1,17 @@
 # @jfdevelops/cli
 
+## 0.11.0
+
+### Minor Changes
+
+- cb7a402: `add package` asks whether the new library is private or public, defaulting to private next to an app as `create` does. Pass `--private` or `--public` to skip the question.
+- 706d354: `create` and `init` add `@jfdevelops/skills` as a development dependency again, and `skills update` upgrades it when shared skills are selected. Shared skill files still come from `jfdevelops/skills` on `main`, so newly pushed skills are installed before they are published.
+  
+  `update` and `skills update` keep an exactly pinned package exact when they upgrade it, instead of saving the package manager's default range.
+- 14b7d55: `update` no longer silently replaces a `package.json` script whose name matches a generated one. It asks whether to keep yours, use the CLI's, or merge both (your command, then the CLI's, with a warning to review the result). Pass `--scripts keep|replace|merge` to skip the question.
+  
+  In generated workspace packages, `update` now asks before removing `build`, `typecheck`, and `test` scripts that Vite+ tasks replace, instead of removing them silently.
+
 ## 0.10.0
 
 ### Minor Changes
