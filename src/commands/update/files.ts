@@ -79,7 +79,8 @@ export async function createProjectUpdateFiles(
     const currentScripts = current?.scripts;
     const scripts = typeof currentScripts === 'object' && currentScripts !== null ? currentScripts : {};
     const hasTaskConfig = files.some((candidate) => candidate.path === (dirname(file.path) === '.' ? 'vite.config.ts' : `${dirname(file.path)}/vite.config.ts`));
-    const retainedScripts = Object.fromEntries(Object.entries(scripts).filter(([name]) => !hasTaskConfig || !['build', 'typecheck', 'test'].includes(name)));
+    const taskNames = hasTaskConfig ? ['build', 'typecheck', 'test'] : [];
+    const retainedScripts = Object.fromEntries(Object.entries(scripts).filter(([name]) => !taskNames.includes(name)));
     const runtimeDependencies = { ...current?.dependencies, ...current?.optionalDependencies };
     const developmentDependencies = Object.fromEntries(Object.entries(generated.devDependencies ?? {}).filter(([name]) => !(name in runtimeDependencies)));
 
@@ -90,7 +91,7 @@ export async function createProjectUpdateFiles(
       ...(current?.version ? { version: current.version } : {}),
       ...(current?.private !== undefined ? { private: current.private } : {}),
       ...(current?.workspaces ? { workspaces: current.workspaces } : {}),
-      scripts: { ...retainedScripts, ...(await resolveScripts(file.path, scripts, generated.scripts ?? {}, resolveScriptConflict)) },
+      scripts: { ...retainedScripts, ...(await resolveScripts(file.path, scripts, generated.scripts ?? {}, resolveScriptConflict, taskNames)) },
       devDependencies: { ...current?.devDependencies, ...developmentDependencies },
     });
   }

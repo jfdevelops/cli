@@ -234,6 +234,25 @@ describe('createProjectUpdateFiles', () => {
     expect((await updateAppScripts({ build: 'old-build' }, 'merge')).scripts.build).toBe('old-build && tsc');
   });
 
+  it('asks before removing a workspace package script that a Vite+ task replaces', async () => {
+    const { root, config } = await createProject({
+      'package.json': { name: 'shop', packageManager: 'pnpm@10.28.1' },
+      'packages/core/package.json': { name: '@shop/core', version: '3.0.0', scripts: { build: 'tsc', deploy: 'custom-deploy' } },
+    });
+    const conflicts: Array<string | undefined> = [];
+    const files = await createProjectUpdateFiles(root, { ...config, formatter: 'prettier', targets: [{ path: 'packages/core', kind: 'library', template: 'typescript-library', options: {} }] }, '0.2.0', undefined, async (conflict) => {
+      if (conflict.manifestPath === 'packages/core/package.json') {
+        conflicts.push(`${conflict.name}:${conflict.generated ?? 'removed'}`);
+      }
+
+      return 'keep';
+    });
+    const manifest = JSON.parse(String(files.find((file) => file.path === 'packages/core/package.json')?.content));
+
+    expect(conflicts).toEqual(['build:removed']);
+    expect(manifest.scripts).toMatchObject({ build: 'tsc', deploy: 'custom-deploy' });
+  });
+
   it('does not ask again about a script that already runs the generated command after a merge', async () => {
     const { conflicts, scripts } = await updateAppScripts({ build: 'old-build && tsc' }, 'replace');
 
@@ -250,6 +269,22 @@ describe('createScriptConflictResolver', () => {
 
     await expect(createScriptConflictResolver(prompter)(conflict)).resolves.toBe('keep');
     expect(transcript).toContain(`? The "build" script in package.json differs from the CLI's. Which should be kept?`);
+  });
+
+  it('recommends removing a script a Vite+ task replaces, and keeps it under a merge policy', async () => {
+    const removal = { manifestPath: 'packages/core/package.json', name: 'build', current: 'tsc' };
+    const { prompter, transcript } = createScriptedPrompter((question) => (question.kind === 'select' ? (question.initialValue ?? '') : true));
+
+    await expect(createScriptConflictResolver(prompter)(removal)).resolves.toBe('replace');
+    expect(transcript.some((line) => line.includes('Remove the script?'))).toBe(true);
+
+    const silent = createScriptedPrompter(() => {
+      throw new Error('A policy must not prompt');
+    });
+
+    await expect(createScriptConflictResolver(silent.prompter, 'merge')(removal)).resolves.toBe('keep');
+    await expect(createScriptConflictResolver(silent.prompter, 'replace')(removal)).resolves.toBe('replace');
+    expect(silent.transcript.filter((line) => line.startsWith('warn:'))).toEqual([]);
   });
 
   it('applies a policy without asking and warns once about merged scripts', async () => {

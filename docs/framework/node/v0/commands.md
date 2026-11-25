@@ -190,7 +190,7 @@ Needs `jfdevelops.json` and a terminal. Use `--scripts <keep|replace|merge>` to 
 | --- | --- |
 | Application sources and tests, `README.md`, `.gitignore`, `pnpm-workspace.yaml` | Never regenerated |
 | `src/` and `test/` stubs | Added only when missing |
-| `package.json` `name`, `version`, `private`, `workspaces`, `dependencies`, other devDependencies, fields the template does not generate, and scripts it does not generate | Kept, except the Vite+ script removal below |
+| `package.json` `name`, `version`, `private`, `workspaces`, `dependencies`, other devDependencies, fields the template does not generate, and scripts it does not generate | Kept, except scripts you choose to remove for Vite+ tasks (below) |
 | Other `package.json` fields the template generates, such as `type`, `files`, `exports`, and the root `packageManager` | Replaced with the generated values |
 | Generated scripts | Added when missing. An existing script with the same name and a different command is a conflict you resolve (below) |
 | Tooling devDependency versions | Replace entries with the same name |
@@ -207,7 +207,7 @@ A merged script can fail, conflict, or run the same work twice, so `update` warn
 
 Pass `--scripts keep`, `--scripts replace`, or `--scripts merge` to apply that choice to every conflict without asking; `update` still needs a terminal for its other reviews. The flag is read by the CLI the project has installed, so a project whose CLI predates the flag rejects it. For that first upgrade, run `update` without the flag and answer the questions, or run `npx @jfdevelops/cli@latest update --scripts <choice>`.
 
-In each workspace app and library the CLI generated, `update` removes the `build`, `typecheck`, and `test` scripts without asking, even with `--scripts keep`, because Vite+ tasks in the package's generated `vite.config.ts` replace them. The workspace root keeps its scripts, which go through the questions above.
+In each workspace app and library the CLI generated, Vite+ tasks named `build`, `typecheck`, and `test` in the package's generated `vite.config.ts` replace scripts of the same names. For each such script the package has, `update` asks whether to remove it, recommending removal because a script beside a task of the same name can clash with it. With `--scripts`, `replace` removes these scripts, while `keep` and `merge` keep them. The workspace root has no task configuration, so its scripts go only through the questions above.
 
 Adopted projects without template metadata keep their existing build tooling. Declining any review cancels the remaining steps, and earlier package upgrades and applied changes remain; run `update` again to retry.
 

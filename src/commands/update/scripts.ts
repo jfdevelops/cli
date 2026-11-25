@@ -4,8 +4,11 @@ export const scriptResolutions = ['keep', 'replace', 'merge'] as const;
 
 export type ScriptResolution = (typeof scriptResolutions)[number];
 
-/** A package.json script whose current command differs from the one the CLI generates. */
-export type ScriptConflict = { manifestPath: string; name: string; current: string; generated: string };
+/**
+ * A package.json script whose current command differs from the one the CLI generates. Without a
+ * generated command, the CLI would remove the script because a Vite+ task of that name replaces it.
+ */
+export type ScriptConflict = { manifestPath: string; name: string; current: string; generated?: string };
 
 export type ScriptConflictResolver = (conflict: ScriptConflict) => Promise<ScriptResolution>;
 
@@ -15,12 +18,16 @@ export function mergeScript(current: string, generated: string) {
   return `${current} && ${generated}`;
 }
 
-/** Chooses each generated script's command, asking the resolver only when the project's command differs. */
+/**
+ * Chooses each generated script's command, asking the resolver only when the project's command
+ * differs. Scripts in `removedNames` are asked about too, and kept unless the resolver replaces them.
+ */
 export async function resolveScripts(
   manifestPath: string,
   current: object,
   generated: Record<string, string>,
   resolveConflict: ScriptConflictResolver,
+  removedNames: string[] = [],
 ) {
   const scripts: Record<string, string> = {};
   const currentScripts = new Map<string, unknown>(Object.entries(current));
@@ -42,6 +49,14 @@ export async function resolveScripts(
     const resolution = await resolveConflict({ manifestPath, name, current: existing, generated: script });
 
     scripts[name] = resolution === 'keep' ? existing : resolution === 'merge' ? mergeScript(existing, script) : script;
+  }
+
+  for (const name of removedNames.filter((candidate) => !(candidate in generated))) {
+    const existing = currentScripts.get(name);
+
+    if (typeof existing === 'string' && (await resolveConflict({ manifestPath, name, current: existing })) !== 'replace') {
+      scripts[name] = existing;
+    }
   }
 
   return scripts;
@@ -66,6 +81,25 @@ export function createScriptConflictResolver(prompter: Prompter, policy?: Script
   }
 
   return async (conflict) => {
+    const { generated } = conflict;
+
+    if (generated === undefined) {
+      // Keeping a script beside the Vite+ task is the closest thing to merging the two.
+      if (policy) {
+
+        return policy === 'merge' ? 'keep' : policy;
+      }
+
+      return prompter.select<ScriptResolution>({
+        message: `Vite+ now runs the "${conflict.name}" task from vite.config.ts, replacing the "${conflict.name}" script in ${conflict.manifestPath}. Remove the script?`,
+        choices: [
+          { value: 'replace', label: 'Remove it', hint: 'recommended' },
+          { value: 'keep', label: 'Keep yours', hint: `${conflict.current}; may clash with the Vite+ task` },
+        ],
+        initialValue: 'replace',
+      });
+    }
+
     if (policy) {
 
       return warnOnMerge(policy);
@@ -75,8 +109,8 @@ export function createScriptConflictResolver(prompter: Prompter, policy?: Script
       message: `The "${conflict.name}" script in ${conflict.manifestPath} differs from the CLI's. Which should be kept?`,
       choices: [
         { value: 'keep', label: 'Keep yours', hint: conflict.current },
-        { value: 'replace', label: 'Use the CLI\'s', hint: conflict.generated },
-        { value: 'merge', label: 'Merge both', hint: mergeScript(conflict.current, conflict.generated) },
+        { value: 'replace', label: 'Use the CLI\'s', hint: generated },
+        { value: 'merge', label: 'Merge both', hint: mergeScript(conflict.current, generated) },
       ],
       initialValue: 'keep',
     });
