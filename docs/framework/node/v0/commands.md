@@ -177,7 +177,7 @@ All `add` commands accept `-d, --directory <path>` (default `.`). They need `jfd
 
 ## `update [directory]`
 
-Needs `jfdevelops.json` and a terminal. The command runs in this order:
+Needs `jfdevelops.json` and a terminal. Use `--scripts <keep|replace|merge>` to resolve `package.json` script conflicts without asking. The command runs in this order:
 
 1. It previews upgrading `@jfdevelops/cli` to the latest release (a development dependency unless it is a runtime dependency) and asks for confirmation.
 2. The installed release then refreshes the project:
@@ -191,7 +191,18 @@ Needs `jfdevelops.json` and a terminal. The command runs in this order:
 | Application sources and tests, `README.md`, `.gitignore`, `pnpm-workspace.yaml` | Never regenerated |
 | `src/` and `test/` stubs | Added only when missing |
 | Other `package.json` fields, including `name`, `version`, `private`, `workspaces`, custom scripts, and dependencies | Kept |
-| Generated scripts and tooling devDependency versions | Replace entries with the same name |
+| Generated scripts | Added when missing. A script of yours with the same name and a different command is a conflict you resolve (below) |
+| Tooling devDependency versions | Replace entries with the same name |
+
+When a `package.json` script has the same name as a generated one but runs a different command, `update` asks what to do with it, defaulting to keeping yours:
+
+| Choice | Result |
+| --- | --- |
+| Keep yours | Your command stays |
+| Use the CLI's | The generated command replaces yours |
+| Merge both | The script runs your command, then the CLI's, joined with `&&` |
+
+A merged script can fail, conflict, or run the same work twice, so `update` warns when you merge and you should review it before committing. A script that already ends with `&& <generated command>` from an earlier merge is not asked about again. Pass `--scripts keep`, `--scripts replace`, or `--scripts merge` to apply that choice to every conflict without asking; `update` still needs a terminal for its other reviews. In a workspace that uses Vite+ tasks, your `build`, `typecheck`, and `test` scripts in a package with generated task configuration are removed when the CLI generates no script of that name.
 
 Adopted projects without template metadata keep their existing build tooling. Declining any review cancels the remaining steps, and earlier package upgrades and applied changes remain; run `update` again to retry.
 

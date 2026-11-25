@@ -12,6 +12,7 @@ import { runSkillsStatus } from './commands/skills/status.js';
 import { runSkillsSync } from './commands/skills/sync.js';
 import { runSkillsUpdate } from './commands/skills/update.js';
 import { runUpdate } from './commands/update/run.js';
+import { scriptResolutions } from './commands/update/scripts.js';
 import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
 import type { PackageManagerName } from './detect/package-manager.js';
 import { createClackPrompter } from './prompts/clack.js';
@@ -333,8 +334,9 @@ export function createProgram(version: string, dependencies = defaultDependencie
     .command('update')
     .description('Upgrade the project CLI and review updates to its managed project setup')
     .argument('[directory]', 'project directory', '.')
+    .addOption(new Option('--scripts <choice>', 'resolve package.json script conflicts without asking').choices(scriptResolutions))
     .addOption(new Option('--refresh-project').hideHelp())
-    .action(async (directory: string, options: { refreshProject?: boolean }) => {
+    .action(async (directory: string, options: { refreshProject?: boolean; scripts?: (typeof scriptResolutions)[number] }) => {
       if (!dependencies.isInteractive()) {
         program.error('jfdevelops update is interactive; run it in a terminal.');
       }
@@ -344,6 +346,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
         version,
         prompter: dependencies.createPrompter(),
         isRefreshingProject: Boolean(options.refreshProject),
+        ...(options.scripts ? { scriptConflicts: options.scripts } : {}),
         ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
         ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
         ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),
