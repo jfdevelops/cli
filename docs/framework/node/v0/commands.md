@@ -16,7 +16,7 @@ Run commands with `npx @jfdevelops/cli <command>`, or through your package manag
 | `add skill <name>` | Enable one skill from an installed package | Yes |
 | `add addon <name>` | Adopt or install an integration and offer its skills | Yes |
 | `add package <name> [--private \| --public]` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks | Yes |
-| `update [directory]` | Upgrade the CLI and refresh managed project setup | Yes |
+| `update [directory] [--scripts <keep\|replace\|merge>]` | Upgrade the CLI and refresh managed project setup | Yes |
 | `skills [directory]` | Report whether enabled skills match installed packages and the shared skills on `main` | No |
 | `skills sync [directory]` | Update skill copies to the installed versions and the current `main` | Yes |
 | `skills update [skills...]` | Upgrade skill source packages, then sync | Yes |
@@ -190,11 +190,12 @@ Needs `jfdevelops.json` and a terminal. Use `--scripts <keep|replace|merge>` to 
 | --- | --- |
 | Application sources and tests, `README.md`, `.gitignore`, `pnpm-workspace.yaml` | Never regenerated |
 | `src/` and `test/` stubs | Added only when missing |
-| Other `package.json` fields, including `name`, `version`, `private`, `workspaces`, custom scripts, and dependencies | Kept |
-| Generated scripts | Added when missing. A script of yours with the same name and a different command is a conflict you resolve (below) |
+| `package.json` `name`, `version`, `private`, `workspaces`, `dependencies`, other devDependencies, fields the template does not generate, and scripts it does not generate | Kept, except the Vite+ script removal below |
+| Other `package.json` fields the template generates, such as `type`, `files`, `exports`, and the root `packageManager` | Replaced with the generated values |
+| Generated scripts | Added when missing. An existing script with the same name and a different command is a conflict you resolve (below) |
 | Tooling devDependency versions | Replace entries with the same name |
 
-When a `package.json` script has the same name as a generated one but runs a different command, `update` asks what to do with it, defaulting to keeping yours:
+When a `package.json` script has the same name as a generated one but runs a different command, `update` asks what to do with it, defaulting to keeping the current command. This includes a script an earlier release generated whose command has changed, so choose **Use the CLI's** for scripts you never edited.
 
 | Choice | Result |
 | --- | --- |
@@ -202,7 +203,11 @@ When a `package.json` script has the same name as a generated one but runs a dif
 | Use the CLI's | The generated command replaces yours |
 | Merge both | The script runs your command, then the CLI's, joined with `&&` |
 
-A merged script can fail, conflict, or run the same work twice, so `update` warns when you merge and you should review it before committing. A script that already ends with `&& <generated command>` from an earlier merge is not asked about again. Pass `--scripts keep`, `--scripts replace`, or `--scripts merge` to apply that choice to every conflict without asking; `update` still needs a terminal for its other reviews. In a workspace that uses Vite+ tasks, your `build`, `typecheck`, and `test` scripts in a package with generated task configuration are removed when the CLI generates no script of that name.
+A merged script can fail, conflict, or run the same work twice, so `update` warns when you merge and you should review it before committing. A script that already ends with `&& <generated command>` from an earlier merge is not asked about again. These answers decide the new `package.json`, which then goes through the normal file review. Upgrading the CLI rewrites the root `package.json`, and `skills update` rewrites the manifests whose packages it upgrades, so those files usually appear there as locally edited even if you did not change them. Choose to overwrite them to apply your script answers; keeping a file discards the script answers and tooling changes for it.
+
+Pass `--scripts keep`, `--scripts replace`, or `--scripts merge` to apply that choice to every conflict without asking; `update` still needs a terminal for its other reviews. The flag is read by the CLI the project has installed, so a project whose CLI predates the flag rejects it. For that first upgrade, run `update` without the flag and answer the questions, or run `npx @jfdevelops/cli@latest update --scripts <choice>`.
+
+In each workspace app and library the CLI generated, `update` removes the `build`, `typecheck`, and `test` scripts without asking, even with `--scripts keep`, because Vite+ tasks in the package's generated `vite.config.ts` replace them. The workspace root keeps its scripts, which go through the questions above.
 
 Adopted projects without template metadata keep their existing build tooling. Declining any review cancels the remaining steps, and earlier package upgrades and applied changes remain; run `update` again to retry.
 
