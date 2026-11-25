@@ -104,7 +104,11 @@ async function readText(projectRoot: string, path: string) {
   return readFile(join(projectRoot, path), 'utf8');
 }
 
-async function add(projectRoot: string, options: { kind?: 'skill' | 'addon' | 'package'; name?: string; installPackage?: PackageInstaller }, respond = answer()) {
+async function add(
+  projectRoot: string,
+  options: { kind?: 'skill' | 'addon' | 'package'; name?: string; visibility?: 'private' | 'public'; installPackage?: PackageInstaller },
+  respond = answer(),
+) {
   const { prompter, transcript } = createScriptedPrompter(respond);
   const status = await runAdd({ openSharedSkills, directory: projectRoot, prompter, ...options });
 
@@ -452,6 +456,31 @@ describe('add package', () => {
     expect((await readProjectConfig(projectRoot))?.targets).toContainEqual({ path: 'packages/utils', kind: 'library', template: 'typescript-library', options: {} });
   });
 
+  it('asks whether the package is public, defaulting to public in a library workspace', async () => {
+    const projectRoot = await createInitializedProject(createWorkspaceFiles(), []);
+    const { status, transcript } = await add(projectRoot, { kind: 'package', name: '@acme/utils' });
+    const manifest = JSON.parse(await readText(projectRoot, 'packages/utils/package.json')) as { private?: boolean };
+
+    expect(status).toBe('complete');
+    expect(transcript).toContain('? Should @acme/utils be published to a registry?');
+    expect(manifest.private).toBeUndefined();
+  });
+
+  it('marks the package private when that is chosen, and skips the question when a visibility is given', async () => {
+    const chosenRoot = await createInitializedProject(createWorkspaceFiles(), []);
+    const chosen = await add(chosenRoot, { kind: 'package', name: '@acme/utils' }, answer((question) => (question.kind === 'select' ? 'private' : undefined)));
+
+    expect(chosen.status).toBe('complete');
+    expect(JSON.parse(await readText(chosenRoot, 'packages/utils/package.json'))).toMatchObject({ name: '@acme/utils', private: true });
+
+    const flaggedRoot = await createInitializedProject(createWorkspaceFiles(), []);
+    const flagged = await add(flaggedRoot, { kind: 'package', name: '@acme/utils', visibility: 'private' });
+
+    expect(flagged.status).toBe('complete');
+    expect(flagged.transcript).not.toContain('? Should @acme/utils be published to a registry?');
+    expect(JSON.parse(await readText(flaggedRoot, 'packages/utils/package.json'))).toMatchObject({ private: true });
+  });
+
   it('registers directories outside the workspace patterns', async () => {
     const projectRoot = await createInitializedProject(createWorkspaceFiles(), []);
     const { status } = await add(projectRoot, { kind: 'package', name: 'tools' }, answer((question) => (question.kind === 'text' ? 'libs/tools' : undefined)));
@@ -519,7 +548,7 @@ describe('add package', () => {
     );
 
     expect(status).toBe('incomplete');
-    expect(transcript.at(-1)).toBe('outro: Finished with errors. Remove what was created in packages/utils, then run jfdevelops add package @acme/utils again.');
+    expect(transcript.at(-1)).toBe('outro: Finished with errors. Remove what was created in packages/utils, then run jfdevelops add package @acme/utils --public again.');
     expect((await readProjectConfig(projectRoot))?.targets.map((target) => target.path)).not.toContain('packages/utils');
   });
 });

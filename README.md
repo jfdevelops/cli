@@ -18,7 +18,7 @@ Interactive commands preview file changes and conflicts before confirmation. `cr
 | `add` / `add --list` | Browse or list compatible additions |
 | `add skill <name>` | Enable one skill from an installed package |
 | `add addon <name>` | Adopt or install Convex, docs tooling, Portless, or an individual TanStack or jfdevelops library |
-| `add package <name>` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks |
+| `add package <name> [--private \| --public]` | Scaffold a TypeScript library in the workspace, with `src/`, `test/`, and Vite+ tasks |
 | `update [directory]` | Upgrade the CLI and review project setup updates |
 | `skills update [skills...]` | Update all enabled skills or selected names |
 | `skills` / `skills sync` | Check enabled skills against installed versions and update them |

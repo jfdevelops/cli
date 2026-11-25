@@ -4,7 +4,7 @@ import type { OpenSharedSkills } from '../../skills/shared.js';
 import { findAdditions, formatAdditions, type ProjectAdditions } from './additions.js';
 import { addAddon } from './addon.js';
 import { applyAdditions, type AddStatus } from './apply.js';
-import { addPackage } from './package.js';
+import { addPackage, type PackageVisibility } from './package.js';
 import { addSkill, chooseSkills } from './skill.js';
 
 export type AdditionKind = 'skill' | 'addon' | 'package';
@@ -14,6 +14,7 @@ export type AddOptions = {
   prompter: Prompter;
   kind?: AdditionKind;
   name?: string;
+  visibility?: PackageVisibility;
   installPackage?: PackageInstaller;
   openSharedSkills?: OpenSharedSkills;
 };
@@ -86,7 +87,7 @@ async function addToProject(options: AddOptions): Promise<AddStatus> {
         });
       case 'package':
 
-        return addPackage(additions, name, prompter);
+        return addPackage(additions, name, prompter, options.visibility);
     }
   }
 

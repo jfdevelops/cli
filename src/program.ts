@@ -1,4 +1,5 @@
 import { Command, Option } from 'commander';
+import type { PackageVisibility } from './commands/add/package.js';
 import { runAdd, runAddList, type AdditionKind } from './commands/add/run.js';
 import type { PackedFileLister } from './authoring/packed-files.js';
 import { parseAgentsFlag, parseCommaList, parseConflictPolicy, parseEnumFlag } from './commands/flags.js';
@@ -262,7 +263,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
     },
   );
 
-  async function runAddCommand(options: { directory: string; kind?: AdditionKind; name?: string }) {
+  async function runAddCommand(options: { directory: string; kind?: AdditionKind; name?: string; visibility?: PackageVisibility }) {
     if (!dependencies.isInteractive()) {
       program.error('jfdevelops add is interactive; run it in a terminal, or use add --list.');
     }
@@ -309,14 +310,23 @@ export function createProgram(version: string, dependencies = defaultDependencie
   ];
 
   for (const [kind, description] of additionCommands) {
-    add
+    const command = add
       .command(kind)
       .description(description)
       .argument('<name>', `${kind} name`)
-      .option('-d, --directory <path>', 'project directory', '.')
-      .action(async (name: string, options: { directory: string }) => {
-        await runAddCommand({ directory: options.directory, kind, name });
-      });
+      .option('-d, --directory <path>', 'project directory', '.');
+
+    if (kind === 'package') {
+      command
+        .addOption(new Option('--private', 'mark the package private instead of asking').conflicts('public'))
+        .addOption(new Option('--public', 'make the package publishable instead of asking').conflicts('private'));
+    }
+
+    command.action(async (name: string, options: { directory: string; private?: boolean; public?: boolean }) => {
+      const visibility = options.private ? 'private' : options.public ? 'public' : undefined;
+
+      await runAddCommand({ directory: options.directory, kind, name, ...(visibility ? { visibility } : {}) });
+    });
   }
 
   program
