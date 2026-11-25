@@ -54,7 +54,8 @@ pnpm exec jfdevelops init
 ```
 
 `create` and `init` install the CLI as a direct development dependency when needed,
-at the exact running version, so collaborators can run the project's installed version. Commit the manifest,
+at the exact running version, so collaborators can run the project's installed version.
+They also add `@jfdevelops/skills`, the package that the shared convention skills belong to. Commit the manifest,
 lockfile, generated skills, and recorded setup.
 
 ## Run in automation

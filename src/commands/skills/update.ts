@@ -40,9 +40,9 @@ export async function runSkillsUpdate({
       const packages = new Set(config.skills.filter((skill) => names.includes(skill.name)).map((skill) => skill.source.package));
       const installs: Parameters<PackageInstaller>[0][] = [];
 
+      // The shared package is still upgraded when declared, but its skill files always come from main.
       if (packages.has(sharedSkillsPackageName)) {
         prompter.info(`Shared convention skills refresh from ${sharedSkillsPackageName} main during sync.`);
-        packages.delete(sharedSkillsPackageName);
       }
 
       for (const scope of [...new Set(['.', ...config.targets.map((target) => target.path)])]) {

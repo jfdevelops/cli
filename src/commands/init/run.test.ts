@@ -160,8 +160,7 @@ describe('runInit', () => {
       '.agents/skills/build-forms/SKILL.md',
       '.claude/skills/build-forms/SKILL.md',
     ]);
-    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0' } });
-    expect(JSON.parse(await readText(projectRoot, 'package.json')).devDependencies?.['@jfdevelops/skills']).toBeUndefined();
+    expect(JSON.parse(await readText(projectRoot, 'package.json'))).toMatchObject({ devDependencies: { '@jfdevelops/cli': '0.1.0', '@jfdevelops/skills': 'latest' } });
     expect(transcript).toContain('outro: Project initialized.');
     const preview = transcript.find((line) => line.startsWith('note [Planned changes]')) ?? '';
 
@@ -175,7 +174,7 @@ describe('runInit', () => {
     expect(repeat.transcript).not.toContain('? Apply these changes?');
   });
 
-  it('does not install an @jfdevelops/skills npm dependency when the CLI is already declared', async () => {
+  it('installs only the missing @jfdevelops/skills dependency when the CLI is already declared', async () => {
     const projectRoot = await createProject(createProjectFiles({
       'package.json': { name: 'shop', private: true, packageManager: 'pnpm@10.28.1', devDependencies: { '@jfdevelops/cli': '0.1.0' } },
     }));
@@ -188,7 +187,7 @@ describe('runInit', () => {
       installDependency: async (options) => void installs.push(options.packageName),
       openSharedSkills,
     })).resolves.toBe('complete');
-    expect(installs).toEqual([]);
+    expect(installs).toEqual(['@jfdevelops/skills']);
     expect((await readProjectConfig(projectRoot))?.skills.map((skill) => skill.name)).toEqual([
       'jf-coding-conventions',
       'jf-docs',
@@ -361,6 +360,7 @@ describe('runInit', () => {
 
     expect(installs).toEqual([
       expect.objectContaining({ packageName: '@jfdevelops/cli', packageManager: 'pnpm', isWorkspaceRoot: true }),
+      expect.objectContaining({ packageName: '@jfdevelops/skills', version: 'latest', packageManager: 'pnpm', isWorkspaceRoot: true }),
     ]);
     expect(transcript.find((line) => line.startsWith('note [Planned changes]'))).toContain(
       'Install development dependency: pnpm add --save-dev --save-exact --workspace-root @jfdevelops/cli@0.1.0',

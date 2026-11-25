@@ -148,7 +148,7 @@ It needs a terminal and npm on `PATH`, and it does not need `jfdevelops.json`. S
 
 ## `init [directory]`
 
-Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds `@jfdevelops/cli` at the running version as an exact development dependency when the root manifest does not have it.
+Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions. Shared skill files still come from `main`, not from the installed package.
 
 ### Non-interactive flags
 
@@ -211,7 +211,7 @@ Needs a terminal and `jfdevelops.json`. It refreshes shared convention skills to
 
 Needs a terminal and `jfdevelops.json`. Use `-d, --directory <path>` to choose a project. Names that no enabled skill uses are rejected before anything is installed.
 
-The command previews source-package upgrades to `latest`, warns that updating a source package updates all of its code, and asks for confirmation. Declining cancels the command. Multiple skills from the same package share one package upgrade per scope. Local `workspace:`, `file:`, `link:`, and `portal:` sources are synced without a registry update. An optional source dependency makes the command exit with 1 and an error before anything is installed; update that package with your package manager, then run `skills sync`. Shared convention skills are never installed as a package; they refresh from `main` during the sync.
+The command previews source-package upgrades to `latest`, warns that updating a source package updates all of its code, and asks for confirmation. Declining cancels the command. Multiple skills from the same package share one package upgrade per scope. Local `workspace:`, `file:`, `link:`, and `portal:` sources are synced without a registry update. An optional source dependency makes the command exit with 1 and an error before anything is installed; update that package with your package manager, then run `skills sync`. When shared convention skills are selected and the project declares `@jfdevelops/skills`, that package is upgraded to `latest` too, but the shared skill files still refresh from `main` during the sync.
 
 It then runs a sync: a full sync, which also installs newly added shared skills, when you gave no names, and only the named skills' copies otherwise. Package upgrades change the manifest and lockfile even if the later file review is declined. See [Update skill sources](skills.md#update-skill-sources).
 

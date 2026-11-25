@@ -17,7 +17,7 @@ In this guide you will:
 
 **Package skills.** A package publishes skills by listing them in the `jfdevelops.skills` field of its `package.json` (see [authoring skills](authoring.md)). The CLI reads that metadata and each `SKILL.md` from the installed version, so instructions always match the API you have installed. It never runs anything from those packages to discover skills.
 
-**Shared convention skills.** These come from `https://github.com/jfdevelops/skills` on `main`. Each command that needs them clones that branch with Git into a temporary directory, discovers every skill registered in its package metadata, installs all of them, and deletes the clone. The CLI does not hardcode the skill list. The commit it cloned is recorded as each skill's source version, and the skills are marked `required` in `jfdevelops.json`. When a dependency provides a skill with the same name as a shared one, the shared skill wins. A project's `@jfdevelops/skills` dependency is ignored.
+**Shared convention skills.** These come from `https://github.com/jfdevelops/skills` on `main`. Each command that needs them clones that branch with Git into a temporary directory, discovers every skill registered in its package metadata, installs all of them, and deletes the clone. The CLI does not hardcode the skill list. The commit it cloned is recorded as each skill's source version, and the skills are marked `required` in `jfdevelops.json`. When a dependency provides a skill with the same name as a shared one, the shared skill wins. `create` and `init` add `@jfdevelops/skills` as a development dependency, and `skills update` upgrades it, but the skill files always come from the `main` clone, so a skill pushed to `main` reaches the project before it is published to npm.
 
 Skills are discovered from the dependencies of the project root and of each workspace package. Each skill is installed once, at the project root, and listings show which packages declare it. Skills from an integration package (Convex, Portless, docs, TanStack, or jfdevelops libraries) are offered only after that integration is adopted with `init` or `add addon`; see [Addons](addons.md).
 
@@ -45,7 +45,7 @@ The command needs `jfdevelops.json` (see [command requirements](commands.md#comm
 
 Status checks only enabled skills, so a shared skill newly added on `main` is not reported until a full sync installs it. For the same reason, `skills --check` does not detect a shared skill when both its `jfdevelops.json` entry and its file records are gone, although it does detect missing files of a recorded skill.
 
-If a shared skill is no longer on `main` and you decline its removal during a sync, status and the `AGENTS.md` list show it as `@jfdevelops/skills is not installed`. That message does not mean you should reinstall the package, which the CLI ignores. Run `jfdevelops skills sync` again and accept the removal, or keep the skill's files as your own.
+If a shared skill is no longer on `main` and you decline its removal during a sync, status and the `AGENTS.md` list show it as `@jfdevelops/skills is not installed`. That message does not mean you should reinstall the package, because shared skill files never come from it. Run `jfdevelops skills sync` again and accept the removal, or keep the skill's files as your own.
 
 > **Note:** Add `--check` in CI to fail when the project needs a sync. It needs `jfdevelops.json`, Git, and network access, and it exits with 1 when `jfdevelops/skills` cannot be fetched. A shared skill counts as `outdated` whenever `main` has a new commit since the commit last recorded by `init`, `update`, `skills update`, or `skills sync`, even when the files are identical. So `skills --check` fails after every new upstream commit until you run `jfdevelops skills sync`.
 
@@ -77,7 +77,7 @@ jfdevelops skills update
 jfdevelops skills update build-forms --directory ./shop
 ```
 
-`skills update` upgrades each enabled skill's source package to `latest` with your package manager, then syncs the copies. Names that no enabled skill uses are rejected before anything is installed.
+`skills update` upgrades each enabled skill's source package to `latest` with your package manager, including a declared `@jfdevelops/skills`, then syncs the copies. Shared skill files still come from `main`. Names that no enabled skill uses are rejected before anything is installed.
 
 - It installs one upgrade per package per package directory, after a confirmation that warns the whole package is upgraded.
 - Local `workspace:`, `file:`, `link:`, and `portal:` sources are synced without a registry update.
@@ -88,30 +88,30 @@ jfdevelops skills update build-forms --directory ./shop
 
 ## Upgrade from earlier releases
 
-Since 0.10.0, shared skills come from `jfdevelops/skills` on `main` rather than from the `@jfdevelops/skills` npm package. In a project set up earlier, `jfdevelops skills` reports shared skills as `outdated`, showing the recorded npm version and the new commit, until you sync. To upgrade:
+Since 0.10.0, shared skill files come from `jfdevelops/skills` on `main` rather than from the `@jfdevelops/skills` npm package. In a project set up earlier, `jfdevelops skills` reports shared skills as `outdated`, showing the recorded npm version and the new commit, until you sync. To upgrade:
 
 1. Upgrade the project's CLI dependency, then commit the manifest and lockfile. Run `jfdevelops update`, or install the release as a development dependency:
 
    ```npm
-   npm i -D @jfdevelops/cli@0.10.0
+   npm i -D @jfdevelops/cli
    ```
 
    ```pnpm
-   pnpm add -D @jfdevelops/cli@0.10.0
+   pnpm add -D @jfdevelops/cli
    ```
 
    ```yarn
-   yarn add -D @jfdevelops/cli@0.10.0
+   yarn add -D @jfdevelops/cli
    ```
 
    ```bun
-   bun add -D @jfdevelops/cli@0.10.0
+   bun add -D @jfdevelops/cli
    ```
 
 2. Run `jfdevelops skills sync`.
-3. Remove the `@jfdevelops/skills` development dependency, only once every collaborator and CI job uses CLI 0.10.0 or newer. Releases 0.7.0 through 0.9.0 read and prefer that package, `init` re-adds it, and their `skills update` installs `@jfdevelops/skills@latest`, so an older CLI's sync rewrites shared skills from npm.
+3. Make sure every collaborator and CI job runs the upgraded CLI. Releases 0.7.0 through 0.9.0 read shared skills from the installed `@jfdevelops/skills` package, so a sync with an older CLI rewrites them from npm.
 
-Projects where a 0.7.0 through 0.9.0 CLI ran `init`, `update`, or `skills update` have the dependency, because those releases' `init` adds the package and their `skills update` installs `@jfdevelops/skills@latest` at the root. The 0.10.0 CLI ignores it and no longer installs it.
+Keep the `@jfdevelops/skills` development dependency. Current releases of `init` and `create` add it, and `skills update` upgrades it.
 
 ## How the CLI tells your edits from its own files
 
