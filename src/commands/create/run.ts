@@ -14,7 +14,7 @@ import { askValidText } from '../../prompts/ask-valid.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { agentNames, type AgentName } from '../../skills/agents.js';
 import { createSkillInstallFiles } from '../../skills/files.js';
-import { buildSkillCatalogWithSharedSkills, openSharedSkillsFromMain, type OpenSharedSkills } from '../../skills/shared.js';
+import { buildSkillCatalogWithSharedSkills, openSharedSkillsFromMain, sharedSkillsPackageName, type OpenSharedSkills } from '../../skills/shared.js';
 import { createInitConfig } from '../init/config.js';
 import { chooseAgents } from '../agents.js';
 import { listPlannedEntries, resolveConflicts } from '../review.js';
@@ -372,7 +372,14 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
     plannedChanges.push(`${plan.conflicts.length} existing file${plan.conflicts.length === 1 ? '' : 's'} in the destination differ from the plan; you choose what to do with each.`);
   }
 
-  plannedChanges.push(`Install dependencies: ${describeDevelopmentDependency(selection.packageManager, '@jfdevelops/cli', version, Boolean(workspace))}`);
+  const dependencies = [
+    { packageName: '@jfdevelops/cli', version },
+    { packageName: sharedSkillsPackageName, version: 'latest' },
+  ];
+
+  plannedChanges.push(
+    `Install dependencies: ${dependencies.map((dependency) => describeDevelopmentDependency(selection.packageManager, dependency.packageName, dependency.version, Boolean(workspace))).join(', then ')}`,
+  );
   plannedChanges.push(`Format and verify: ${selection.packageManager} run format, then ${workspace ? 'typecheck, test, and build' : 'build'}`);
 
   if (selection.shouldInitializeGit) {
@@ -402,13 +409,15 @@ async function createProject(options: CreateOptions): Promise<CreateStatus> {
   let dependencyError: unknown;
 
   try {
-    await installDependency({
-      directory: selection.directory,
-      packageManager: selection.packageManager,
-      packageName: '@jfdevelops/cli',
-      version,
-      isWorkspaceRoot: Boolean(workspace),
-    });
+    for (const dependency of dependencies) {
+      await installDependency({
+        directory: selection.directory,
+        packageManager: selection.packageManager,
+        packageName: dependency.packageName,
+        version: dependency.version,
+        isWorkspaceRoot: Boolean(workspace),
+      });
+    }
   } catch (error) {
     dependencyError = error;
     prompter.error(`Could not install project dependencies: ${error instanceof Error ? error.message : String(error)}`);

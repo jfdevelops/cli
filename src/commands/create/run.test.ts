@@ -155,6 +155,7 @@ describe('runCreate', () => {
           lifecycle.push('git');
         },
         checkGitIdentity: async () => true,
+        openSharedSkills: openTestSharedSkills(),
       }),
     ).resolves.toBe('complete');
 
@@ -163,7 +164,7 @@ describe('runCreate', () => {
     expect(JSON.parse(await readFile(join(destination, 'package.json'), 'utf8'))).toMatchObject({
       name: 'site',
       private: true,
-      devDependencies: { '@jfdevelops/cli': '0.1.0' },
+      devDependencies: { '@jfdevelops/cli': '0.1.0', '@jfdevelops/skills': 'latest' },
     });
     expect(await readProjectConfig(destination)).toMatchObject({
       project: { name: 'site', packageManager: 'pnpm' },
@@ -363,7 +364,7 @@ describe('runCreate', () => {
       project: { name: 'site', packageManager: 'pnpm' },
       targets: [{ path: 'apps/web', kind: 'app', template: 'node-app' }],
     });
-    expect(workspaceRootFlags).toEqual([true]);
+    expect(workspaceRootFlags).toEqual([true, true]);
     expect(transcript.find((line) => line.startsWith('note [Planned project]'))).toContain('pnpm add --save-dev --save-exact --workspace-root @jfdevelops/cli@0.1.0');
 
     const layout = transcript.find((line) => line.startsWith('note [Project layout]')) ?? '';

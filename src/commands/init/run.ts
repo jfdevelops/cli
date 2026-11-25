@@ -163,7 +163,11 @@ async function adoptProject({
     const configOptions = { existing: project.config, version, name: project.name, packageManager, targets, addons, agents, selectedSkills, missingSourceSkills };
     const plannedConfig = parseProjectConfig(createInitConfig({ ...configOptions, managedFiles: plan.managedFiles }));
     const isConfigChanged = JSON.stringify(plannedConfig) !== JSON.stringify(project.config);
-    const dependencies = [{ packageName: '@jfdevelops/cli', version }].filter(({ packageName }) => !hasDependency(project, packageName));
+    const dependencies = [
+      { packageName: '@jfdevelops/cli', version },
+      // Skill content always comes from main; the package records the shared skills a project depends on.
+      { packageName: sharedSkillsPackageName, version: 'latest' },
+    ].filter(({ packageName }) => !hasDependency(project, packageName));
     const isWorkspaceRoot = packageManager === 'pnpm' && project.workspace?.source === 'pnpm-workspace.yaml';
 
     if (!plan.hasChanges && !isConfigChanged && dependencies.length === 0) {

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { readPackageManifest } from '../../detect/manifest.js';
-import { describePackageInstall, installPackage, type PackageInstaller } from '../../dependencies/install.js';
+import { describePackageInstall, installPackage, isExactVersion, type PackageInstaller } from '../../dependencies/install.js';
 import { PromptCancelledError, type Prompter } from '../../prompts/prompter.js';
 import { openSharedSkillsFromMain, sharedSkillsPackageName, type OpenSharedSkills } from '../../skills/shared.js';
 import { loadConfiguredProject } from './inspect.js';
@@ -40,9 +40,9 @@ export async function runSkillsUpdate({
       const packages = new Set(config.skills.filter((skill) => names.includes(skill.name)).map((skill) => skill.source.package));
       const installs: Parameters<PackageInstaller>[0][] = [];
 
+      // The shared package is still upgraded when declared, but its skill files always come from main.
       if (packages.has(sharedSkillsPackageName)) {
         prompter.info(`Shared convention skills refresh from ${sharedSkillsPackageName} main during sync.`);
-        packages.delete(sharedSkillsPackageName);
       }
 
       for (const scope of [...new Set(['.', ...config.targets.map((target) => target.path)])]) {
@@ -75,12 +75,14 @@ export async function runSkillsUpdate({
             packageName: `${packageName}@latest`,
             isDevelopment: !manifest.dependencies?.[packageName],
             isWorkspaceRoot: scope === '.' && project.workspace?.source === 'pnpm-workspace.yaml',
+            // An exact pin, such as the one create and init write, stays exact after the upgrade.
+            isExact: isExactVersion(specifier),
           });
         }
       }
 
       if (installs.length > 0) {
-        prompter.note(installs.map((options) => `${options.directory}: ${describePackageInstall(options.packageManager, options.packageName, options.isDevelopment, options.isWorkspaceRoot)}`).join('\n'), 'Update skill source packages');
+        prompter.note(installs.map((options) => `${options.directory}: ${describePackageInstall(options.packageManager, options.packageName, options.isDevelopment, options.isWorkspaceRoot, options.isExact)}`).join('\n'), 'Update skill source packages');
         prompter.info('Updating a source package updates all of its code. Only the selected skill copies will be synchronized.');
 
         if (!(await prompter.confirm({ message: 'Update these source packages to their latest published versions?', initialValue: true }))) {

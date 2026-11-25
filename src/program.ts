@@ -1,4 +1,5 @@
 import { Command, Option } from 'commander';
+import type { PackageVisibility } from './commands/add/package.js';
 import { runAdd, runAddList, type AdditionKind } from './commands/add/run.js';
 import type { PackedFileLister } from './authoring/packed-files.js';
 import { parseAgentsFlag, parseCommaList, parseConflictPolicy, parseEnumFlag } from './commands/flags.js';
@@ -11,6 +12,7 @@ import { runSkillsStatus } from './commands/skills/status.js';
 import { runSkillsSync } from './commands/skills/sync.js';
 import { runSkillsUpdate } from './commands/skills/update.js';
 import { runUpdate } from './commands/update/run.js';
+import { scriptResolutions } from './commands/update/scripts.js';
 import type { DependencyInstaller, PackageInstaller } from './dependencies/install.js';
 import type { PackageManagerName } from './detect/package-manager.js';
 import { createClackPrompter } from './prompts/clack.js';
@@ -262,7 +264,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
     },
   );
 
-  async function runAddCommand(options: { directory: string; kind?: AdditionKind; name?: string }) {
+  async function runAddCommand(options: { directory: string; kind?: AdditionKind; name?: string; visibility?: PackageVisibility }) {
     if (!dependencies.isInteractive()) {
       program.error('jfdevelops add is interactive; run it in a terminal, or use add --list.');
     }
@@ -309,22 +311,32 @@ export function createProgram(version: string, dependencies = defaultDependencie
   ];
 
   for (const [kind, description] of additionCommands) {
-    add
+    const command = add
       .command(kind)
       .description(description)
       .argument('<name>', `${kind} name`)
-      .option('-d, --directory <path>', 'project directory', '.')
-      .action(async (name: string, options: { directory: string }) => {
-        await runAddCommand({ directory: options.directory, kind, name });
-      });
+      .option('-d, --directory <path>', 'project directory', '.');
+
+    if (kind === 'package') {
+      command
+        .addOption(new Option('--private', 'mark the package private instead of asking').conflicts('public'))
+        .addOption(new Option('--public', 'make the package publishable instead of asking').conflicts('private'));
+    }
+
+    command.action(async (name: string, options: { directory: string; private?: boolean; public?: boolean }) => {
+      const visibility = options.private ? 'private' : options.public ? 'public' : undefined;
+
+      await runAddCommand({ directory: options.directory, kind, name, ...(visibility ? { visibility } : {}) });
+    });
   }
 
   program
     .command('update')
     .description('Upgrade the project CLI and review updates to its managed project setup')
     .argument('[directory]', 'project directory', '.')
+    .addOption(new Option('--scripts <choice>', 'resolve package.json script conflicts without asking').choices(scriptResolutions))
     .addOption(new Option('--refresh-project').hideHelp())
-    .action(async (directory: string, options: { refreshProject?: boolean }) => {
+    .action(async (directory: string, options: { refreshProject?: boolean; scripts?: (typeof scriptResolutions)[number] }) => {
       if (!dependencies.isInteractive()) {
         program.error('jfdevelops update is interactive; run it in a terminal.');
       }
@@ -334,6 +346,7 @@ export function createProgram(version: string, dependencies = defaultDependencie
         version,
         prompter: dependencies.createPrompter(),
         isRefreshingProject: Boolean(options.refreshProject),
+        ...(options.scripts ? { scriptConflicts: options.scripts } : {}),
         ...(dependencies.installPackage ? { installPackage: dependencies.installPackage } : {}),
         ...(dependencies.installDependency ? { installDependency: dependencies.installDependency } : {}),
         ...(dependencies.openSharedSkills ? { openSharedSkills: dependencies.openSharedSkills } : {}),

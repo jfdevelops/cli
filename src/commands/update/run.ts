@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { writeProjectConfig } from '../../config/write.js';
-import { describePackageInstall, installPackage, type DependencyInstaller, type PackageInstaller } from '../../dependencies/install.js';
+import { describePackageInstall, installPackage, isExactVersion, type DependencyInstaller, type PackageInstaller } from '../../dependencies/install.js';
 import { createChangePlan } from '../../plan/create.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { detectProject } from '../../detect/project.js';
@@ -16,22 +16,25 @@ import { runSkillsUpdate } from '../skills/update.js';
 import type { SkillsSyncStatus } from '../skills/sync.js';
 import type { PackageManagerVersionReader } from '../create/lifecycle.js';
 import { createProjectUpdateFiles } from './files.js';
+import { createScriptConflictResolver, type ScriptResolution } from './scripts.js';
 
 type UpdateOptions = {
   directory: string;
   version: string;
   prompter: Prompter;
   isRefreshingProject?: boolean;
+  /** Resolves every package.json script conflict this way instead of asking. */
+  scriptConflicts?: ScriptResolution;
   installPackage?: PackageInstaller;
   installDependency?: DependencyInstaller;
   readPackageManagerVersion?: PackageManagerVersionReader;
   installProject?: (directory: string, packageManager: PackageManagerName) => Promise<void>;
-  runInstalledUpdate?: (root: string) => Promise<void>;
+  runInstalledUpdate?: (root: string, extraArguments: string[]) => Promise<void>;
   openSharedSkills?: OpenSharedSkills;
 };
 
 // Run the newly installed release so the refresh uses its templates and migrations, rather than this older process.
-async function runInstalledUpdate(root: string) {
+async function runInstalledUpdate(root: string, extraArguments: string[]) {
   const installed = findInstalledPackage(root, '@jfdevelops/cli', root);
 
   if (!installed) {
@@ -39,7 +42,7 @@ async function runInstalledUpdate(root: string) {
   }
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(process.execPath, [join(installed, 'dist/cli.js'), 'update', root, '--refresh-project'], { cwd: root, stdio: 'inherit', shell: false });
+    const child = spawn(process.execPath, [join(installed, 'dist/cli.js'), 'update', root, '--refresh-project', ...extraArguments], { cwd: root, stdio: 'inherit', shell: false });
 
     child.once('error', reject);
     child.once('exit', (code) => {
@@ -90,7 +93,13 @@ async function refreshProject(options: UpdateOptions): Promise<SkillsSyncStatus>
 
   try {
     const { project, config } = loaded;
-    const files = await createProjectUpdateFiles(project.root, config, version, options.readPackageManagerVersion);
+    const files = await createProjectUpdateFiles(
+      project.root,
+      config,
+      version,
+      options.readPackageManagerVersion,
+      createScriptConflictResolver(prompter, options.scriptConflicts),
+    );
     const desiredPaths = new Set(files.map((file) => file.path));
     const untouched = config.managedFiles.filter((file) => file.owner.type === 'project' && !desiredPaths.has(file.path));
     const plan = await createChangePlan({
@@ -150,9 +159,13 @@ export async function runUpdate(options: UpdateOptions): Promise<SkillsSyncStatu
       packageName: '@jfdevelops/cli@latest',
       isDevelopment: !project.manifest.dependencies?.['@jfdevelops/cli'],
       isWorkspaceRoot: project.workspace?.source === 'pnpm-workspace.yaml',
+      isExact: isExactVersion(project.manifest.dependencies?.['@jfdevelops/cli'] ?? project.manifest.devDependencies?.['@jfdevelops/cli']),
     };
 
-    prompter.note(describePackageInstall(installOptions.packageManager, installOptions.packageName, installOptions.isDevelopment, installOptions.isWorkspaceRoot), 'Upgrade CLI');
+    prompter.note(
+      describePackageInstall(installOptions.packageManager, installOptions.packageName, installOptions.isDevelopment, installOptions.isWorkspaceRoot, installOptions.isExact),
+      'Upgrade CLI',
+    );
     prompter.info('The latest CLI will review skill, integration, and generated tooling updates. Package upgrades remain installed if a later review is declined.');
 
     if (!(await prompter.confirm({ message: 'Upgrade the CLI and review project updates?', initialValue: true }))) {
@@ -160,7 +173,7 @@ export async function runUpdate(options: UpdateOptions): Promise<SkillsSyncStatu
     }
 
     await install(installOptions);
-    await runInstalled(project.root);
+    await runInstalled(project.root, options.scriptConflicts ? ['--scripts', options.scriptConflicts] : []);
     prompter.outro('CLI and project update finished.');
 
     return 'complete';

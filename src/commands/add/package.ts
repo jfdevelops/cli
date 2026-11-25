@@ -13,6 +13,8 @@ import { applyAdditions, type AddStatus } from './apply.js';
 
 type Workspace = NonNullable<ProjectDetection['workspace']>;
 
+export type PackageVisibility = 'private' | 'public';
+
 function normalizePattern(pattern: string) {
 
   return pattern.trim().replace(/^\.\//, '').replace(/\/+$/, '');
@@ -69,6 +71,20 @@ export function createRegistrationEdit(workspace: Workspace, directory: string):
   };
 }
 
+// Next to an app a library is usually internal, so private is the default there, matching create.
+async function chooseVisibility(additions: ProjectAdditions, name: string, prompter: Prompter) {
+  const hasApp = additions.config.targets.some((target) => target.kind === 'app');
+
+  return prompter.select<PackageVisibility>({
+    message: `Should ${name} be published to a registry?`,
+    choices: [
+      { value: 'public', label: 'Public', hint: 'publishable package' },
+      { value: 'private', label: 'Private', hint: 'marked "private": true' },
+    ],
+    initialValue: hasApp ? 'private' : 'public',
+  });
+}
+
 // A file at the path, or a directory with entries, leaves no room for the package.
 async function isOccupied(path: string) {
   if (!existsSync(path)) {
@@ -81,9 +97,10 @@ async function isOccupied(path: string) {
 
 /**
  * Scaffolds a TypeScript library package inside the workspace, registers its directory when no
- * workspace pattern covers it, and records it as a library target.
+ * workspace pattern covers it, and records it as a library target. Without a visibility, asks
+ * whether the package is private or public.
  */
-export async function addPackage(additions: ProjectAdditions, name: string, prompter: Prompter): Promise<AddStatus> {
+export async function addPackage(additions: ProjectAdditions, name: string, prompter: Prompter, visibility?: PackageVisibility): Promise<AddStatus> {
   const { project, config } = additions;
   const { workspace } = project;
 
@@ -109,11 +126,12 @@ export async function addPackage(additions: ProjectAdditions, name: string, prom
     throw new Error(`${directory} is already in use.`);
   }
 
+  const isPrivate = (visibility ?? (await chooseVisibility(additions, name, prompter))) === 'private';
   const isRegistered = isWorkspaceMember(workspace.patterns, directory);
-  const files = createWorkspacePackageFiles(name, { hasBuildScript: true }).map((file) => ({ path: `${directory}/${file.path}`, owner: projectOwner, content: file.content }));
+  const files = createWorkspacePackageFiles(name, { isPrivate, hasBuildScript: true }).map((file) => ({ path: `${directory}/${file.path}`, owner: projectOwner, content: file.content }));
   const edits = isRegistered ? [] : [createRegistrationEdit(workspace, directory)];
   const targets = [...config.targets, { path: directory, kind: 'library' as const, template: 'typescript-library', options: {} }];
-  const editRetryHint = `Remove what was created in ${directory}, then run jfdevelops add package ${name} again.`;
+  const editRetryHint = `Remove what was created in ${directory}, then run jfdevelops add package ${name} --${isPrivate ? 'private' : 'public'} again.`;
   const status = await applyAdditions(additions, { files, edits, targets, editRetryHint }, prompter);
 
   if (status === 'complete') {

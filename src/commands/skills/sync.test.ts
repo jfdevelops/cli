@@ -380,6 +380,27 @@ describe('runSkillsUpdate', () => {
     expect(installs).toEqual([]);
   });
 
+  it('upgrades a declared @jfdevelops/skills package while shared skill files still come from main', async () => {
+    const projectRoot = await createInitializedProject();
+    const manifestPath = join(projectRoot, 'package.json');
+    const manifest = JSON.parse(await readText(projectRoot, 'package.json')) as { devDependencies?: Record<string, string> };
+
+    await writeFile(manifestPath, `${JSON.stringify({ ...manifest, devDependencies: { ...manifest.devDependencies, '@jfdevelops/skills': '0.2.1' } }, null, 2)}
+`);
+
+    const installs: { packageName: string; isDevelopment: boolean; isExact: boolean }[] = [];
+
+    await expect(runSkillsUpdate({
+      directory: projectRoot,
+      openSharedSkills,
+      prompter: createScriptedPrompter(answer()).prompter,
+      installPackage: async (options) => void installs.push({ packageName: options.packageName, isDevelopment: options.isDevelopment, isExact: Boolean(options.isExact) }),
+    })).resolves.toBe('unchanged');
+    expect(installs).toContainEqual({ packageName: '@jfdevelops/skills@latest', isDevelopment: true, isExact: true });
+    expect(installs).toContainEqual(expect.objectContaining({ packageName: '@acme/forms@latest', isExact: true }));
+    expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'jf-git')?.source.version).toBe('test-revision');
+  });
+
   it('installs newly required shared skills on a default update without naming them', async () => {
     const projectRoot = await createInitializedProject();
     const config = await readProjectConfig(projectRoot);

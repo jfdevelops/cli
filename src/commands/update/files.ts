@@ -6,9 +6,17 @@ import type { DesiredFile } from '../../plan/create.js';
 import { createTemplateFiles, createJsonFile } from '../create/templates.js';
 import { readPackageManagerVersion, type PackageManagerVersionReader } from '../create/lifecycle.js';
 import { createWorkspaceFiles } from '../create/workspace.js';
+import { resolveScripts, type ScriptConflictResolver } from './scripts.js';
 
 // Rebuild tooling from recorded templates; application source and documentation belong to the project now.
-export async function createProjectUpdateFiles(root: string, config: ProjectConfig, version: string, readVersion: PackageManagerVersionReader = readPackageManagerVersion) {
+// Without a resolver, generated scripts replace the project's scripts of the same name.
+export async function createProjectUpdateFiles(
+  root: string,
+  config: ProjectConfig,
+  version: string,
+  readVersion: PackageManagerVersionReader = readPackageManagerVersion,
+  resolveScriptConflict: ScriptConflictResolver = async () => 'replace',
+) {
   const formatter = config.formatter;
 
   if (formatter !== 'prettier' && formatter !== 'biome') {
@@ -51,7 +59,16 @@ export async function createProjectUpdateFiles(root: string, config: ProjectConf
 
   const tooling = files.filter((file) => (!/(^|\/)(src|test)\//.test(file.path) || !existsSync(join(root, file.path))) && !/(^|\/)(README\.md|\.gitignore|pnpm-workspace\.yaml)$/.test(file.path));
 
-  return Promise.all(tooling.map(async (file) => {
+  // Sequential, so script conflicts are asked about one manifest at a time.
+  const updated: DesiredFile[] = [];
+
+  for (const file of tooling) {
+    updated.push(await mergeManifest(file));
+  }
+
+  return updated;
+
+  async function mergeManifest(file: DesiredFile) {
     if (!file.path.endsWith('package.json')) {
 
       return file;
@@ -62,7 +79,8 @@ export async function createProjectUpdateFiles(root: string, config: ProjectConf
     const currentScripts = current?.scripts;
     const scripts = typeof currentScripts === 'object' && currentScripts !== null ? currentScripts : {};
     const hasTaskConfig = files.some((candidate) => candidate.path === (dirname(file.path) === '.' ? 'vite.config.ts' : `${dirname(file.path)}/vite.config.ts`));
-    const retainedScripts = Object.fromEntries(Object.entries(scripts).filter(([name]) => !hasTaskConfig || !['build', 'typecheck', 'test'].includes(name)));
+    const taskNames = hasTaskConfig ? ['build', 'typecheck', 'test'] : [];
+    const retainedScripts = Object.fromEntries(Object.entries(scripts).filter(([name]) => !taskNames.includes(name)));
     const runtimeDependencies = { ...current?.dependencies, ...current?.optionalDependencies };
     const developmentDependencies = Object.fromEntries(Object.entries(generated.devDependencies ?? {}).filter(([name]) => !(name in runtimeDependencies)));
 
@@ -73,8 +91,8 @@ export async function createProjectUpdateFiles(root: string, config: ProjectConf
       ...(current?.version ? { version: current.version } : {}),
       ...(current?.private !== undefined ? { private: current.private } : {}),
       ...(current?.workspaces ? { workspaces: current.workspaces } : {}),
-      scripts: { ...retainedScripts, ...generated.scripts },
+      scripts: { ...retainedScripts, ...(await resolveScripts(file.path, scripts, generated.scripts ?? {}, resolveScriptConflict, taskNames)) },
       devDependencies: { ...current?.devDependencies, ...developmentDependencies },
     });
-  }));
+  }
 }

@@ -48,22 +48,32 @@ export type PackageInstaller = (options: {
   packageName: string;
   isDevelopment: boolean;
   isWorkspaceRoot?: boolean;
+  /** Saves the exact resolved version instead of the package manager's default range. */
+  isExact?: boolean;
 }) => Promise<void>;
 
-function getPackageArguments(packageManager: PackageManagerName, packageName: string, isDevelopment: boolean, isWorkspaceRoot = false) {
+function getPackageArguments(packageManager: PackageManagerName, packageName: string, isDevelopment: boolean, isWorkspaceRoot = false, isExact = false) {
   const command = packageManager === 'npm' ? 'install' : 'add';
-  const developmentFlag = packageManager === 'npm' || packageManager === 'pnpm' ? '--save-dev' : '--dev';
+  const usesSaveFlags = packageManager === 'npm' || packageManager === 'pnpm';
+  const developmentFlag = usesSaveFlags ? '--save-dev' : '--dev';
+  const exactFlag = usesSaveFlags ? '--save-exact' : '--exact';
   const workspaceFlag = packageManager === 'pnpm' && isWorkspaceRoot ? ['--workspace-root'] : [];
 
-  return [command, ...(isDevelopment ? [developmentFlag] : []), ...workspaceFlag, packageName];
+  return [command, ...(isDevelopment ? [developmentFlag] : []), ...(isExact ? [exactFlag] : []), ...workspaceFlag, packageName];
 }
 
-export function describePackageInstall(packageManager: PackageManagerName, packageName: string, isDevelopment: boolean, isWorkspaceRoot = false) {
+export function describePackageInstall(packageManager: PackageManagerName, packageName: string, isDevelopment: boolean, isWorkspaceRoot = false, isExact = false) {
 
-  return [packageManager, ...getPackageArguments(packageManager, packageName, isDevelopment, isWorkspaceRoot)].join(' ');
+  return [packageManager, ...getPackageArguments(packageManager, packageName, isDevelopment, isWorkspaceRoot, isExact)].join(' ');
+}
+
+/** Whether a manifest specifier pins one exact version, such as `1.2.3`, rather than a range. */
+export function isExactVersion(specifier: string | undefined) {
+
+  return specifier !== undefined && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(specifier);
 }
 
 // Adds the latest version of a package, as a development dependency when requested.
-export async function installPackage({ directory, packageManager, packageName, isDevelopment, isWorkspaceRoot }: Parameters<PackageInstaller>[0]) {
-  await runPackageManager(directory, packageManager, getPackageArguments(packageManager, packageName, isDevelopment, isWorkspaceRoot));
+export async function installPackage({ directory, packageManager, packageName, isDevelopment, isWorkspaceRoot, isExact }: Parameters<PackageInstaller>[0]) {
+  await runPackageManager(directory, packageManager, getPackageArguments(packageManager, packageName, isDevelopment, isWorkspaceRoot, isExact));
 }
