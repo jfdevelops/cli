@@ -148,7 +148,7 @@ It needs a terminal and npm on `PATH`, and it does not need `jfdevelops.json`. S
 
 ## `init [directory]`
 
-Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions. A later `update` or `skills update` upgrades them with your package manager's default version range instead: `update` upgrades `@jfdevelops/cli`, and both commands upgrade `@jfdevelops/skills`. Shared skill files still come from `main`, not from the installed package.
+Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions. A later `update` (for `@jfdevelops/cli` and `@jfdevelops/skills`) or `skills update` (for `@jfdevelops/skills`) keeps an exact version exact when it upgrades; a range stays a range. Shared skill files still come from `main`, not from the installed package.
 
 ### Non-interactive flags
 

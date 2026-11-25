@@ -77,7 +77,7 @@ jfdevelops skills update
 jfdevelops skills update build-forms --directory ./shop
 ```
 
-`skills update` upgrades each enabled skill's source package to `latest` with your package manager, including a declared `@jfdevelops/skills` when shared skills are among the selected skills, then syncs the copies. Shared skill files still come from `main`. Names that no enabled skill uses are rejected before anything is installed.
+`skills update` upgrades each enabled skill's source package to `latest` with your package manager, including a declared `@jfdevelops/skills` when shared skills are among the selected skills, then syncs the copies. A package pinned to an exact version is saved as the new exact version; other specifiers get your package manager's default range. Shared skill files still come from `main`. Names that no enabled skill uses are rejected before anything is installed.
 
 - It installs one upgrade per package per package directory, after a confirmation that warns the whole package is upgraded.
 - Local `workspace:`, `file:`, `link:`, and `portal:` sources are synced without a registry update.

@@ -388,15 +388,16 @@ describe('runSkillsUpdate', () => {
     await writeFile(manifestPath, `${JSON.stringify({ ...manifest, devDependencies: { ...manifest.devDependencies, '@jfdevelops/skills': '0.2.1' } }, null, 2)}
 `);
 
-    const installs: { packageName: string; isDevelopment: boolean }[] = [];
+    const installs: { packageName: string; isDevelopment: boolean; isExact: boolean }[] = [];
 
     await expect(runSkillsUpdate({
       directory: projectRoot,
       openSharedSkills,
       prompter: createScriptedPrompter(answer()).prompter,
-      installPackage: async (options) => void installs.push({ packageName: options.packageName, isDevelopment: options.isDevelopment }),
+      installPackage: async (options) => void installs.push({ packageName: options.packageName, isDevelopment: options.isDevelopment, isExact: Boolean(options.isExact) }),
     })).resolves.toBe('unchanged');
-    expect(installs).toContainEqual({ packageName: '@jfdevelops/skills@latest', isDevelopment: true });
+    expect(installs).toContainEqual({ packageName: '@jfdevelops/skills@latest', isDevelopment: true, isExact: true });
+    expect(installs).toContainEqual(expect.objectContaining({ packageName: '@acme/forms@latest', isExact: true }));
     expect((await readProjectConfig(projectRoot))?.skills.find((skill) => skill.name === 'jf-git')?.source.version).toBe('test-revision');
   });
 

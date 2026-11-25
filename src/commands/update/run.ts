@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { writeProjectConfig } from '../../config/write.js';
-import { describePackageInstall, installPackage, type DependencyInstaller, type PackageInstaller } from '../../dependencies/install.js';
+import { describePackageInstall, installPackage, isExactVersion, type DependencyInstaller, type PackageInstaller } from '../../dependencies/install.js';
 import { createChangePlan } from '../../plan/create.js';
 import type { PackageManagerName } from '../../detect/package-manager.js';
 import { detectProject } from '../../detect/project.js';
@@ -150,9 +150,13 @@ export async function runUpdate(options: UpdateOptions): Promise<SkillsSyncStatu
       packageName: '@jfdevelops/cli@latest',
       isDevelopment: !project.manifest.dependencies?.['@jfdevelops/cli'],
       isWorkspaceRoot: project.workspace?.source === 'pnpm-workspace.yaml',
+      isExact: isExactVersion(project.manifest.dependencies?.['@jfdevelops/cli'] ?? project.manifest.devDependencies?.['@jfdevelops/cli']),
     };
 
-    prompter.note(describePackageInstall(installOptions.packageManager, installOptions.packageName, installOptions.isDevelopment, installOptions.isWorkspaceRoot), 'Upgrade CLI');
+    prompter.note(
+      describePackageInstall(installOptions.packageManager, installOptions.packageName, installOptions.isDevelopment, installOptions.isWorkspaceRoot, installOptions.isExact),
+      'Upgrade CLI',
+    );
     prompter.info('The latest CLI will review skill, integration, and generated tooling updates. Package upgrades remain installed if a later review is declined.');
 
     if (!(await prompter.confirm({ message: 'Upgrade the CLI and review project updates?', initialValue: true }))) {
