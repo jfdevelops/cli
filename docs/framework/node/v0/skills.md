@@ -77,7 +77,7 @@ jfdevelops skills update
 jfdevelops skills update build-forms --directory ./shop
 ```
 
-`skills update` upgrades each enabled skill's source package to `latest` with your package manager, including a declared `@jfdevelops/skills` when shared skills are among the selected skills, then syncs the copies. A package pinned to an exact version is saved as the new exact version; other specifiers get your package manager's default range. Shared skill files still come from `main`. Names that no enabled skill uses are rejected before anything is installed.
+`skills update` upgrades each enabled skill's source package to `latest` with your package manager, including a declared `@jfdevelops/skills` when shared skills are among the selected skills, then syncs the copies. A package pinned to a plain `x.y.z` version is saved as the new exact version; other specifiers get your package manager's default range. Shared skill files still come from `main`. Names that no enabled skill uses are rejected before anything is installed.
 
 - It installs one upgrade per package per package directory, after a confirmation that warns the whole package is upgraded.
 - Local `workspace:`, `file:`, `link:`, and `portal:` sources are synced without a registry update.
@@ -93,19 +93,19 @@ Since 0.10.0, shared skill files come from `jfdevelops/skills` on `main` rather 
 1. Upgrade the project's CLI dependency, then commit the manifest and lockfile. Run `jfdevelops update`, or install the release as a development dependency:
 
    ```npm
-   npm i -D @jfdevelops/cli
+   npm i -D -E @jfdevelops/cli
    ```
 
    ```pnpm
-   pnpm add -D @jfdevelops/cli
+   pnpm add -D -E @jfdevelops/cli
    ```
 
    ```yarn
-   yarn add -D @jfdevelops/cli
+   yarn add -D -E @jfdevelops/cli
    ```
 
    ```bun
-   bun add -D @jfdevelops/cli
+   bun add -D --exact @jfdevelops/cli
    ```
 
 2. Run `jfdevelops skills sync`.
