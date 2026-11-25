@@ -61,7 +61,7 @@ The validity check uses the argument's last path segment, so `create apps/web` n
 
 The prompts run in this order: name, destination, app or library, **Monorepo** (apps) or **Do you want to add a package? (this makes the project a workspace)** (libraries), the workspace prompts, template, package manager, formatter, coding agents, and Git initialization. When Git is initialized it also offers to add a remote: paste an `https://`, `ssh://`, or `user@host:path` URL, or press Enter to skip. The URL is added as `origin` and nothing is pushed.
 
-After you confirm, `create` writes the files, installs dependencies, and formats the files it wrote with the chosen formatter and ESLint. It then checks them and runs `build`, or `typecheck`, `test`, and `build` in a workspace. The shared convention skills it installs are every skill registered in `jfdevelops/skills` on `main`. `create` also writes `AGENTS.md`, and `CLAUDE.md` when Claude Code is selected.
+After you confirm, `create` writes the files, installs `@jfdevelops/cli` at the running version and `@jfdevelops/skills` at its latest release as exact development dependencies, and formats the files it wrote with the chosen formatter and ESLint. It then checks them and runs `build`, or `typecheck`, `test`, and `build` in a workspace. The shared convention skills it installs are every skill registered in `jfdevelops/skills` on `main`. `create` also writes `AGENTS.md`, and `CLAUDE.md` when Claude Code is selected.
 
 Git is skipped with a warning when Git has no author or committer identity (`git var` is used, so environment variables count as well as `user.name` and `user.email`) or the destination already contains a `.git` entry (a file counts too, for example in a worktree). Otherwise `create` runs `git init -b main`, stages everything, and commits with `chore(init): initialize project`.
 
@@ -148,7 +148,7 @@ It needs a terminal and npm on `PATH`, and it does not need `jfdevelops.json`. S
 
 ## `init [directory]`
 
-Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions. Shared skill files still come from `main`, not from the installed package.
+Detects the project, confirms target types and integrations, lets you choose skills and the coding agents that load them, previews every change with conflicts, applies it after confirmation, and records the setup. It also adds development dependencies the root manifest does not have: `@jfdevelops/cli` at the running version, and `@jfdevelops/skills` at its latest release. Both are saved as exact versions; a later `skills update` upgrades `@jfdevelops/skills` with your package manager's default version range. Shared skill files still come from `main`, not from the installed package.
 
 ### Non-interactive flags
 
