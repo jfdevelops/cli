@@ -13,7 +13,7 @@ Interactive commands preview file changes and conflicts before confirmation. `cr
 
 | Command | Purpose |
 | --- | --- |
-| `create [directory]` | Create a TypeScript app or library with your choice of formatter and optional Git initialization |
+| `create [name]` | Create a TypeScript app or library with your choice of formatter and optional Git initialization |
 | `init [directory]` | Adopt an existing project: confirm targets and integrations, choose skills, review every change |
 | `add` / `add --list` | Browse or list compatible additions |
 | `add skill <name>` | Enable one skill from an installed package |
@@ -31,6 +31,7 @@ Interactive commands preview file changes and conflicts before confirmation. `cr
 - [Getting started](docs/framework/node/v0/getting-started.md): first run, what ends up in your project, and keeping it current.
 - [Command reference](docs/framework/node/v0/commands.md): every command, option, terminal requirement, and exit code.
 - [Skills, updates, and conflicts](docs/framework/node/v0/skills.md): skill sources, status, syncing, and how local edits are protected.
+- [Addons](docs/framework/node/v0/addons.md): adopting integrations and setting up the docs addon.
 - [Configuration](docs/framework/node/v0/configuration.md): `jfdevelops.json` fields and how the format evolves.
 - [Authoring skills](docs/framework/node/v0/authoring.md): publishing skills from a library with `create skills`.
 
